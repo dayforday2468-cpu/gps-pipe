@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from modules.decorators import *
 from modules.config import BATCH_SIZE
 
+
 def _validate_batch(df: pl.DataFrame, schema: type[BaseModel]) -> None:
     expected_columns = list(schema.model_fields.keys())
 
@@ -18,6 +19,7 @@ def _validate_batch(df: pl.DataFrame, schema: type[BaseModel]) -> None:
 
     for row in df.iter_rows(named=True):
         schema.model_validate(row, strict=True)
+
 
 @measure_time
 def save_batches(
@@ -37,16 +39,17 @@ def save_batches(
 
             first_batch = False
 
+
 @measure_generator_time
 def load_csv_batches(
-    path: str,
-    schema: type[BaseModel],
-    batch_size: int = BATCH_SIZE
+    path: str, schema: type[BaseModel], batch_size: int = BATCH_SIZE
 ) -> Iterator[pl.DataFrame]:
     batches = pl.scan_csv(
         path,
         try_parse_dates=True,
-    ).collect_batches(chunk_size=batch_size,)
+    ).collect_batches(
+        chunk_size=batch_size,
+    )
 
     for df in batches:
         _validate_batch(df, schema)

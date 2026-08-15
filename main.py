@@ -1,100 +1,96 @@
+from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
+import polars as pl
+
+from modules.config import DATA_DIR, SOURCE_PATH
 from modules.dataload import *
-from modules.schema import *
 from modules.datastore import *
 from modules.logger import get_logger
+from modules.schema import *
+
+logger = get_logger(__name__)
 
 
-def init_data_directory(
-    data_dir: str = "data",
-    preserve: str = "timeline.json",
-) -> None:
-    data_path = Path(data_dir)
+def init_data_directory() -> None:
+    data_dir = Path(DATA_DIR)
+    source_path = Path(SOURCE_PATH).resolve()
 
-    for path in data_path.iterdir():
-        if path.name == preserve:
+    for path in data_dir.iterdir():
+        if path.resolve() == source_path:
             continue
 
         if path.is_file():
             path.unlink()
 
 
-logger = get_logger(__name__)
-data_path = "data/timeline.json"
+DATASETS = {
+    "raw_positions": {
+        "loader": load_raw_positions_batches,
+        "schema": RawPositionSchema,
+    },
+    "timeline_paths": {
+        "loader": load_timeline_paths_batches,
+        "schema": TimelinePathSchema,
+    },
+    "visits": {
+        "loader": load_visits_batches,
+        "schema": VisitSchema,
+    },
+    "activities": {
+        "loader": load_activities_batches,
+        "schema": ActivitySchema,
+    },
+}
+
+
+@dataclass
+class DataBatches:
+    raw_positions: Iterator[pl.DataFrame]
+    timeline_paths: Iterator[pl.DataFrame]
+    visits: Iterator[pl.DataFrame]
+    activities: Iterator[pl.DataFrame]
+
+
+def extract_and_save() -> None:
+    for name, config in DATASETS.items():
+        batches = config["loader"](SOURCE_PATH)
+
+        save_batches(
+            batches,
+            f"{DATA_DIR}/{name}.csv",
+            config["schema"],
+        )
+
+        logger.debug("%s saved", name)
+
+    logger.info("all data batches saved")
+
+
+def load_saved_batches() -> DataBatches:
+    loaded = {}
+
+    for name, config in DATASETS.items():
+        loaded[name] = load_csv_batches(
+            f"{DATA_DIR}/{name}.csv",
+            config["schema"],
+        )
+
+        logger.debug("%s loader initialized", name)
+
+    logger.info("all data batch loaders initialized")
+
+    return DataBatches(**loaded)
+
 
 if __name__ == "__main__":
     # 프로젝트 초기화
     init_data_directory()
     logger.info("data directory initialized")
 
-    # 데이터 배치 로더 생성
-    raw_positions_batches = load_raw_positions_batches(data_path)
-    logger.debug("raw position loader initialized")
+    # 원본 데이터를 표준 스키마의 CSV로 추출 및 저장
+    extract_and_save()
 
-    timeline_paths_batches = load_timeline_paths_batches(data_path)
-    logger.debug("timeline path loader initialized")
-
-    visits_batches = load_visits_batches(data_path)
-    logger.debug("visit loader initialized")
-
-    activities_batches = load_activities_batches(data_path)
-    logger.debug("activity loader initialized")
-
-    # 배치 데이터 스키마 검증 및 저장
-    save_batches(
-        raw_positions_batches,
-        "data/raw_positions.csv",
-        RawPositionSchema,
-    )
-    logger.debug("raw positions saved")
-
-    save_batches(
-        timeline_paths_batches,
-        "data/timeline_paths.csv",
-        TimelinePathSchema,
-    )
-    logger.debug("timeline paths saved")
-
-    save_batches(
-        visits_batches,
-        "data/visits.csv",
-        VisitSchema,
-    )
-    logger.debug("visits saved")
-
-    save_batches(
-        activities_batches,
-        "data/activities.csv",
-        ActivitySchema,
-    )
-    logger.debug("activities saved")
-
-    logger.info("all data batches saved")
-
-    # 배치 데이터 스키마 검증 및 로딩
-    raw_positions_batches = load_csv_batches(
-        "data/raw_positions.csv",
-        RawPositionSchema,
-    )
-    logger.debug("raw positions loaded")
-
-    timeline_paths_batches = load_csv_batches(
-        "data/timeline_paths.csv",
-        TimelinePathSchema,
-    )
-    logger.debug("timeline paths loaded")
-
-    visits_batches = load_csv_batches(
-        "data/visits.csv",
-        VisitSchema,
-    )
-    logger.debug("visits loaded")
-
-    activities_batches = load_csv_batches(
-        "data/activities.csv",
-        ActivitySchema,
-    )
-    logger.debug("activities loaded")
-
-    logger.info("all data batches loaded")
+    # 저장된 CSV를 배치 제너레이터로 다시 로딩
+    batches = load_saved_batches()
