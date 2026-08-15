@@ -71,3 +71,30 @@ if __name__ == "__main__":
     logger.debug("activities saved")
 
     logger.info("all data batches saved")
+
+    # 배치 데이터 스키마 검증 및 로딩
+    raw_positions_batches = load_csv_batches(
+        "data/raw_positions.csv",
+        RawPositionSchema,
+    )
+    logger.debug("raw positions loaded")
+
+    timeline_paths_batches = load_csv_batches(
+        "data/timeline_paths.csv",
+        TimelinePathSchema,
+    )
+    logger.debug("timeline paths loaded")
+
+    visits_batches = load_csv_batches(
+        "data/visits.csv",
+        VisitSchema,
+    )
+    logger.debug("visits loaded")
+
+    activities_batches = load_csv_batches(
+        "data/activities.csv",
+        ActivitySchema,
+    )
+    logger.debug("activities loaded")
+
+    logger.info("all data batches loaded")

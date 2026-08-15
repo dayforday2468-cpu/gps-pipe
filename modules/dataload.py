@@ -3,6 +3,7 @@ import polars as pl
 from collections.abc import Iterator
 
 from modules.decorators import *
+from modules.config import BATCH_SIZE
 
 
 def _extract_raw_segments(path: str, key: str):
@@ -47,7 +48,7 @@ def _batch_records(records, batch_size: int):
 @measure_generator_time
 def load_raw_positions_batches(
     path: str,
-    batch_size: int = 10000,
+    batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
 
     records = _extract_raw_segments(
@@ -62,7 +63,7 @@ def load_raw_positions_batches(
                 pl.col("LatLng").str.split_exact(",", 1).alias("coordinates"),
                 pl.col("timestamp")
                 .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
-                .dt.convert_time_zone("Asia/Seoul")
+                .dt.convert_time_zone("UTC")
                 .alias("timestamp"),
             )
             .with_columns(
@@ -93,7 +94,7 @@ def load_raw_positions_batches(
 @measure_generator_time
 def load_timeline_paths_batches(
     path: str,
-    batch_size: int = 10_000,
+    batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
 
     records = _extract_semantic_segments(
@@ -113,7 +114,7 @@ def load_timeline_paths_batches(
                 pl.col("timelinePath")
                 .struct.field("time")
                 .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
-                .dt.convert_time_zone("Asia/Seoul")
+                .dt.convert_time_zone("UTC")
                 .alias("timestamp"),
             )
             .with_columns(
@@ -143,7 +144,7 @@ def load_timeline_paths_batches(
 @measure_generator_time
 def load_visits_batches(
     path: str,
-    batch_size: int = 10_000,
+    batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
 
     records = _extract_semantic_segments(
@@ -163,11 +164,11 @@ def load_visits_batches(
                 .alias("coordinates"),
                 pl.col("startTime")
                 .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
-                .dt.convert_time_zone("Asia/Seoul")
+                .dt.convert_time_zone("UTC")
                 .alias("start_time"),
                 pl.col("endTime")
                 .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
-                .dt.convert_time_zone("Asia/Seoul")
+                .dt.convert_time_zone("UTC")
                 .alias("end_time"),
             )
             .with_columns(
@@ -210,7 +211,7 @@ def load_visits_batches(
 @measure_generator_time
 def load_activities_batches(
     path: str,
-    batch_size: int = 10_000,
+    batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
 
     records = _extract_semantic_segments(
@@ -234,11 +235,11 @@ def load_activities_batches(
                 .alias("end_coordinates"),
                 pl.col("startTime")
                 .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
-                .dt.convert_time_zone("Asia/Seoul")
+                .dt.convert_time_zone("UTC")
                 .alias("start_time"),
                 pl.col("endTime")
                 .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
-                .dt.convert_time_zone("Asia/Seoul")
+                .dt.convert_time_zone("UTC")
                 .alias("end_time"),
             )
             .with_columns(
