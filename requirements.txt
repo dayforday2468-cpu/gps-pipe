@@ -1,3 +1,9 @@
+annotated-types==0.8.0
 ijson==3.5.1
 polars==1.43.2
 polars-runtime-32==1.43.2
+pydantic==2.13.4
+pydantic_core==2.46.4
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+tzdata==2026.3
