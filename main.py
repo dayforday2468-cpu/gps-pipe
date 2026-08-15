@@ -1,6 +1,8 @@
-from modules.dataload import dataload
+from modules.dataload import load_raw_positions
 
 
-df = dataload("data/timeline.json")
+if __name__=="__main__":
+    raw_positions_df = load_raw_positions("data/timeline.json")
 
-print(df)
+    for df in raw_positions_df:
+        print(df)

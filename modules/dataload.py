@@ -1,59 +1,80 @@
-import json
-
-from modules.decorators import measure_time
+import ijson
 import polars as pl
+from collections.abc import Iterator
+
+from modules.decorators import *
 
 
-def extract_positions(raw_signals):
-    for signal in raw_signals:
-        position = signal.get("position")
+def extract_raw_segments(path: str, key: str):
+    with open(path, "rb") as f:
+        for segment in ijson.items(f, "rawSignals.item"):
+            value = segment.get(key)
 
-        if position is not None:
-            yield position
+            if value is not None:
+                yield value
 
 
-@measure_time
-def dataload(path: str) -> pl.DataFrame:
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+def batch_records(records, batch_size: int):
+    batch = []
 
-    df = pl.DataFrame(
-        extract_positions(data["rawSignals"])
+    for record in records:
+        batch.append(record)
+
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+
+    if batch:
+        yield batch
+
+
+@measure_generator_time
+def load_raw_positions(
+    path: str,
+    batch_size: int = 10000,
+) -> Iterator[pl.DataFrame]:
+
+    records = extract_raw_segments(
+        path,
+        key="position",
     )
 
-    return (
-        df
-        .with_columns(
-            pl.col("LatLng")
-            .str.split_exact(",", 1)
-            .alias("coordinates"),
+    for batch in batch_records(records, batch_size):
+        df = (
+            pl.DataFrame(batch)
+            .with_columns(
+                pl.col("LatLng")
+                .str.split_exact(",", 1)
+                .alias("coordinates"),
 
-            pl.col("timestamp")
-            .str.to_datetime(
-                format="%Y-%m-%dT%H:%M:%S%.3f%:z"
+                pl.col("timestamp")
+                .str.to_datetime(
+                    format="%Y-%m-%dT%H:%M:%S%.3f%:z"
+                )
+                .dt.convert_time_zone("Asia/Seoul")
+                .alias("timestamp"),
             )
-            .dt.convert_time_zone("Asia/Seoul")
-            .alias("timestamp"),
-        )
-        .with_columns(
-            pl.col("coordinates")
-            .struct.field("field_0")
-            .str.replace("°", "")
-            .str.strip_chars()
-            .cast(pl.Float64)
-            .alias("latitude"),
+            .with_columns(
+                pl.col("coordinates")
+                .struct.field("field_0")
+                .str.replace("°", "")
+                .str.strip_chars()
+                .cast(pl.Float64)
+                .alias("latitude"),
 
-            pl.col("coordinates")
-            .struct.field("field_1")
-            .str.replace("°", "")
-            .str.strip_chars()
-            .cast(pl.Float64)
-            .alias("longitude"),
+                pl.col("coordinates")
+                .struct.field("field_1")
+                .str.replace("°", "")
+                .str.strip_chars()
+                .cast(pl.Float64)
+                .alias("longitude"),
+            )
+            .select(
+                "latitude",
+                "longitude",
+                pl.col("accuracyMeters").alias("accuracy"),
+                "timestamp",
+            )
         )
-        .select(
-            "latitude",
-            "longitude",
-            pl.col("accuracyMeters").alias("accuracy"),
-            "timestamp",
-        )
-    )
+
+        yield df
