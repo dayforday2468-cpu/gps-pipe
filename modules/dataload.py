@@ -13,6 +13,7 @@ def _extract_raw_segments(path: str, key: str):
             if value is not None:
                 yield value
 
+
 def _extract_semantic_segments(path: str, key: str):
     with open(path, "rb") as f:
         for segment in ijson.items(
@@ -58,14 +59,9 @@ def load_raw_positions_batches(
         df = (
             pl.DataFrame(batch)
             .with_columns(
-                pl.col("LatLng")
-                .str.split_exact(",", 1)
-                .alias("coordinates"),
-
+                pl.col("LatLng").str.split_exact(",", 1).alias("coordinates"),
                 pl.col("timestamp")
-                .str.to_datetime(
-                    format="%Y-%m-%dT%H:%M:%S%.3f%:z"
-                )
+                .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
                 .dt.convert_time_zone("Asia/Seoul")
                 .alias("timestamp"),
             )
@@ -76,7 +72,6 @@ def load_raw_positions_batches(
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("latitude"),
-
                 pl.col("coordinates")
                 .struct.field("field_1")
                 .str.replace("°", "")
@@ -93,6 +88,7 @@ def load_raw_positions_batches(
         )
 
         yield df
+
 
 @measure_generator_time
 def load_timeline_paths_batches(
@@ -114,12 +110,9 @@ def load_timeline_paths_batches(
                 .struct.field("point")
                 .str.split_exact(",", 1)
                 .alias("coordinates"),
-
                 pl.col("timelinePath")
                 .struct.field("time")
-                .str.to_datetime(
-                    format="%Y-%m-%dT%H:%M:%S%.3f%:z"
-                )
+                .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
                 .dt.convert_time_zone("Asia/Seoul")
                 .alias("timestamp"),
             )
@@ -130,7 +123,6 @@ def load_timeline_paths_batches(
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("latitude"),
-
                 pl.col("coordinates")
                 .struct.field("field_1")
                 .str.replace("°", "")
@@ -146,6 +138,7 @@ def load_timeline_paths_batches(
         )
 
         yield df
+
 
 @measure_generator_time
 def load_visits_batches(
@@ -168,18 +161,12 @@ def load_visits_batches(
                 .struct.field("latLng")
                 .str.split_exact(",", 1)
                 .alias("coordinates"),
-
                 pl.col("startTime")
-                .str.to_datetime(
-                    format="%Y-%m-%dT%H:%M:%S%.3f%:z"
-                )
+                .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
                 .dt.convert_time_zone("Asia/Seoul")
                 .alias("start_time"),
-
                 pl.col("endTime")
-                .str.to_datetime(
-                    format="%Y-%m-%dT%H:%M:%S%.3f%:z"
-                )
+                .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
                 .dt.convert_time_zone("Asia/Seoul")
                 .alias("end_time"),
             )
@@ -190,23 +177,17 @@ def load_visits_batches(
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("latitude"),
-
                 pl.col("coordinates")
                 .struct.field("field_1")
                 .str.replace("°", "")
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("longitude"),
-
-                pl.col("visit")
-                .struct.field("probability")
-                .alias("probability"),
-
+                pl.col("visit").struct.field("probability").alias("probability"),
                 pl.col("visit")
                 .struct.field("topCandidate")
                 .struct.field("semanticType")
                 .alias("semantic_type"),
-
                 pl.col("visit")
                 .struct.field("topCandidate")
                 .struct.field("probability")
@@ -224,6 +205,7 @@ def load_visits_batches(
         )
 
         yield df
+
 
 @measure_generator_time
 def load_activities_batches(
@@ -245,24 +227,17 @@ def load_activities_batches(
                 .struct.field("latLng")
                 .str.split_exact(",", 1)
                 .alias("start_coordinates"),
-
                 pl.col("activity")
                 .struct.field("end")
                 .struct.field("latLng")
                 .str.split_exact(",", 1)
                 .alias("end_coordinates"),
-
                 pl.col("startTime")
-                .str.to_datetime(
-                    format="%Y-%m-%dT%H:%M:%S%.3f%:z"
-                )
+                .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
                 .dt.convert_time_zone("Asia/Seoul")
                 .alias("start_time"),
-
                 pl.col("endTime")
-                .str.to_datetime(
-                    format="%Y-%m-%dT%H:%M:%S%.3f%:z"
-                )
+                .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.3f%:z")
                 .dt.convert_time_zone("Asia/Seoul")
                 .alias("end_time"),
             )
@@ -273,41 +248,30 @@ def load_activities_batches(
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("start_latitude"),
-
                 pl.col("start_coordinates")
                 .struct.field("field_1")
                 .str.replace("°", "")
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("start_longitude"),
-
                 pl.col("end_coordinates")
                 .struct.field("field_0")
                 .str.replace("°", "")
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("end_latitude"),
-
                 pl.col("end_coordinates")
                 .struct.field("field_1")
                 .str.replace("°", "")
                 .str.strip_chars()
                 .cast(pl.Float64)
                 .alias("end_longitude"),
-
-                pl.col("activity")
-                .struct.field("distanceMeters")
-                .alias("distance"),
-
-                pl.col("activity")
-                .struct.field("probability")
-                .alias("probability"),
-
+                pl.col("activity").struct.field("distanceMeters").alias("distance"),
+                pl.col("activity").struct.field("probability").alias("probability"),
                 pl.col("activity")
                 .struct.field("topCandidate")
                 .struct.field("type")
                 .alias("activity_type"),
-
                 pl.col("activity")
                 .struct.field("topCandidate")
                 .struct.field("probability")

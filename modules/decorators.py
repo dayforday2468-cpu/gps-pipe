@@ -6,9 +6,7 @@ from modules.logger import get_logger
 
 
 def measure_time(func):
-    logger = get_logger(
-        f"{func.__module__}.{func.__name__}"
-    )
+    logger = get_logger(f"{func.__module__}.{func.__name__}")
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -27,10 +25,9 @@ def measure_time(func):
 
     return wrapper
 
+
 def measure_generator_time(func):
-    logger = get_logger(
-        f"{func.__module__}.{func.__name__}"
-    )
+    logger = get_logger(f"{func.__module__}.{func.__name__}")
 
     @wraps(func)
     def wrapper(*args, **kwargs):
