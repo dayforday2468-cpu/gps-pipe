@@ -1,14 +1,17 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime
 
 import polars as pl
 
 from modules.config import DATA_DIR, SOURCE_PATH
 from modules.dataload import *
 from modules.datastore import *
+from modules.datafilter import *
 from modules.logger import get_logger
 from modules.schema import *
+from modules.datafilter import filter_points, filter_intervals
 
 logger = get_logger(__name__)
 
@@ -94,3 +97,43 @@ if __name__ == "__main__":
 
     # 저장된 CSV를 배치 제너레이터로 다시 로딩
     batches = load_saved_batches()
+
+    # 시간 필터 테스트
+    start = datetime(2026, 8, 10, 0, 0)
+    end = datetime(2026, 8, 11, 0, 0)
+
+    raw_filtered = filter_points(
+        batches.raw_positions,
+        start,
+        end,
+    )
+
+    timeline_filtered = filter_points(
+        batches.timeline_paths,
+        start,
+        end,
+    )
+
+    visits_filtered = filter_intervals(
+        batches.visits,
+        start,
+        end,
+    )
+
+    activities_filtered = filter_intervals(
+        batches.activities,
+        start,
+        end,
+    )
+
+    for df in raw_filtered:
+        print(df)
+
+    for df in timeline_filtered:
+        print(df)
+
+    for df in visits_filtered:
+        print(df)
+
+    for df in activities_filtered:
+        print(df)
