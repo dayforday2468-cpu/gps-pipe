@@ -114,12 +114,8 @@ class GPSVisualizer:
             x_ticks = max(2, int(bbox.width / self.tick_spacing))
             y_ticks = max(2, int(bbox.height / self.tick_spacing))
 
-            ax.xaxis.set_major_locator(
-                LinearLocator(numticks=x_ticks)
-            )
-            ax.yaxis.set_major_locator(
-                LinearLocator(numticks=y_ticks)
-            )
+            ax.xaxis.set_major_locator(LinearLocator(numticks=x_ticks))
+            ax.yaxis.set_major_locator(LinearLocator(numticks=y_ticks))
 
             fig.canvas.draw_idle()
 
