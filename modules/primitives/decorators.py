@@ -2,7 +2,7 @@ import inspect
 from functools import wraps
 from time import perf_counter
 
-from modules.logger import get_logger
+from modules.primitives.logger import get_logger
 
 
 def measure_time(func):

@@ -5,14 +5,23 @@ from datetime import datetime
 
 import polars as pl
 
-from modules.config import DATA_DIR, SOURCE_PATH
-from modules.dataload import *
-from modules.datastore import *
-from modules.datafilter import *
-from modules.logger import get_logger
-from modules.schema import *
-from modules.datafilter import filter_points, filter_intervals
-from modules.visualization import GPSVisualizer
+from modules.primitives.config import DATA_DIR, SOURCE_PATH
+from modules.primitives.dataload import (
+    load_activities_batches,
+    load_raw_positions_batches,
+    load_timeline_paths_batches,
+    load_visits_batches,
+)
+from modules.primitives.datafilter import filter_intervals, filter_points
+from modules.primitives.datastore import load_csv_batches, save_batches
+from modules.primitives.logger import get_logger
+from modules.primitives.schema import (
+    ActivitySchema,
+    RawPositionSchema,
+    TimelinePathSchema,
+    VisitSchema,
+)
+from modules.primitives.visualization import GPSVisualizer
 
 logger = get_logger(__name__)
 
@@ -101,7 +110,7 @@ if __name__ == "__main__":
     # 저장된 CSV를 배치 제너레이터로 다시 로딩
     batches = DataBatches()
 
-        # 하루치 raw position 필터링
+    # 하루치 raw position 필터링
     start = datetime(2026, 8, 10, 0, 0)
     end = datetime(2026, 8, 11, 0, 0)
 

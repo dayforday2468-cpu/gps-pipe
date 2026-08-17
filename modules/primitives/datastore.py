@@ -3,8 +3,8 @@ from pathlib import Path
 import polars as pl
 from pydantic import BaseModel
 
-from modules.decorators import *
-from modules.config import BATCH_SIZE
+from modules.primitives.decorators import measure_time, measure_generator_time
+from modules.primitives.config import BATCH_SIZE
 
 
 def _validate_batch(df: pl.DataFrame, schema: type[BaseModel]) -> None:

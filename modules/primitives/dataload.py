@@ -2,8 +2,8 @@ import ijson
 import polars as pl
 from collections.abc import Iterator
 
-from modules.decorators import *
-from modules.config import BATCH_SIZE
+from modules.primitives.decorators import measure_generator_time
+from modules.primitives.config import BATCH_SIZE
 
 
 def _extract_raw_segments(path: str, key: str):

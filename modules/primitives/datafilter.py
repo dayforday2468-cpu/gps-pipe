@@ -3,7 +3,7 @@ from datetime import datetime
 
 import polars as pl
 
-from modules.timeutils import kst_to_utc_range
+from modules.primitives.timeutils import kst_to_utc_range
 
 
 def filter_points(
