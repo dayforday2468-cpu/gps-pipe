@@ -44,3 +44,9 @@ class ActivitySchema(BaseModel):
 
     probability: float = Field(ge=0, le=1)
     activity_probability: float = Field(ge=0, le=1)
+
+
+
+
+class DistanceSchema(BaseModel):
+    distance_to_next: float | None = Field(default=None, ge=0)

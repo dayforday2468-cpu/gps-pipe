@@ -21,6 +21,7 @@ from modules.primitives.schema import (
     TimelinePathSchema,
     VisitSchema,
 )
+from modules.haversine import haversine_distance
 from modules.primitives.visualization import GPSVisualizer
 
 logger = get_logger(__name__)
@@ -114,3 +115,16 @@ def initialize_pipeline() -> DataBatches:
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
+
+    start = datetime(2026, 8, 11, 0, 0)
+    end = datetime(2026, 8, 12, 0, 0)
+
+    raw_filtered = filter_points(
+        batches.raw_positions,
+        start,
+        end,
+    )
+
+    raw_with_distance = haversine_distance(raw_filtered)
+
+    print(raw_with_distance)

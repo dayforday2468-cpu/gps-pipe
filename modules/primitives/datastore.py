@@ -39,6 +39,17 @@ def save_batches(
 
             first_batch = False
 
+@measure_time
+def save_dataframe(
+    df: pl.DataFrame,
+    path: str,
+    schema: type[BaseModel],
+) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    _validate_batch(df, schema)
+    df.write_csv(output_path)
 
 @measure_generator_time
 def load_csv_batches(
