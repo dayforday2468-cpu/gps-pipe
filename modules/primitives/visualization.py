@@ -135,11 +135,14 @@ class GPSVisualizer:
         self,
         interval: int = 100,
         repeat: bool = False,
+        mode: str = "index",
     ) -> None:
+        if mode not in {"index", "time"}:
+            raise ValueError("mode must be 'index' or 'time'")
+
         fig, ax = plt.subplots()
 
-        # 애니메이션 중 축 범위가 계속 바뀌지 않도록
-        # 전체 데이터 기준으로 미리 설정
+        # 전체 데이터 기준으로 축 범위 고정
         all_longitudes = []
         all_latitudes = []
 
@@ -189,7 +192,21 @@ class GPSVisualizer:
         if self.show_legend:
             ax.legend()
 
-        max_frames = max(layer["data"].height for layer in self._layers)
+        if mode == "index":
+            frames = range(
+                max(layer["data"].height for layer in self._layers)
+            )
+
+        else:
+            timestamps = []
+
+            for layer in self._layers:
+                data = layer["data"]
+
+                if "timestamp" in data.columns:
+                    timestamps.extend(data["timestamp"].to_list())
+
+            frames = sorted(set(timestamps))
 
         def update(frame):
             updated_artists = []
@@ -197,19 +214,27 @@ class GPSVisualizer:
             for layer, artist in zip(self._layers, artists):
                 data = layer["data"]
 
-                end = min(frame + 1, data.height)
+                if mode == "index":
+                    end = min(frame + 1, data.height)
+                    visible = data[:end]
 
-                longitude = data["longitude"][:end]
-                latitude = data["latitude"][:end]
+                else:
+                    # timestamp가 없는 layer는 처음부터 전부 표시
+                    if "timestamp" not in data.columns:
+                        visible = data
+                    else:
+                        visible = data.filter(
+                            pl.col("timestamp") <= frame
+                        )
+
+                longitude = visible["longitude"]
+                latitude = visible["latitude"]
 
                 coordinates = (
-                    pl.DataFrame(
-                        {
-                            "longitude": longitude,
-                            "latitude": latitude,
-                        }
+                    visible.select(
+                        "longitude",
+                        "latitude",
                     )
-                    .select("longitude", "latitude")
                     .to_numpy()
                 )
 
@@ -228,13 +253,12 @@ class GPSVisualizer:
         animation = FuncAnimation(
             fig,
             update,
-            frames=max_frames,
+            frames=frames,
             interval=interval,
             repeat=repeat,
             blit=False,
         )
 
-        # animation 객체가 GC 되는 것을 방지
         self._animation = animation
 
         plt.show()
