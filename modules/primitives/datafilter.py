@@ -14,6 +14,9 @@ def filter_points(
     start_utc, end_utc = kst_to_utc_range(start, end)
 
     for df in batches:
+        if df["timestamp"][0] > end_utc:
+            break
+
         filtered = df.filter(
             (pl.col("timestamp") >= start_utc) & (pl.col("timestamp") < end_utc)
         )
@@ -30,6 +33,9 @@ def filter_intervals(
     start_utc, end_utc = kst_to_utc_range(start, end)
 
     for df in batches:
+        if df["start_time"][0] > end_utc:
+            break
+
         filtered = df.filter(
             (pl.col("start_time") < end_utc) & (pl.col("end_time") > start_utc)
         )

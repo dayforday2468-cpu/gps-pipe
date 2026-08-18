@@ -116,8 +116,8 @@ if __name__ == "__main__":
     batches = initialize_pipeline()
 
     # 하루치 데이터 필터링
-    start = datetime(2026, 8, 10, 0, 0)
-    end = datetime(2026, 8, 11, 0, 0)
+    start = datetime(2026, 8, 11, 0, 0)
+    end = datetime(2026, 8, 12, 0, 0)
 
     raw_filtered = filter_points(
         batches.raw_positions,
@@ -199,4 +199,3 @@ if __name__ == "__main__":
     )
 
     visualizer.show()
-
