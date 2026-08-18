@@ -128,19 +128,14 @@ if __name__ == "__main__":
 
     raw_with_distance = haversine_distance(raw_filtered)
 
-    distances = (
-        raw_with_distance
-        .select("distance_to_next")
-        .drop_nulls()
-    )
+    distances = raw_with_distance.select("distance_to_next").drop_nulls()
 
     print("=== Distance Summary ===")
     print(distances.describe())
 
     print("\n=== Largest Distances ===")
     print(
-        raw_with_distance
-        .select(
+        raw_with_distance.select(
             "timestamp",
             "latitude",
             "longitude",

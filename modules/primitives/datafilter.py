@@ -22,8 +22,7 @@ def filter_points(
             break
 
         filtered = df.filter(
-            (pl.col("timestamp") >= start_utc)
-            & (pl.col("timestamp") < end_utc)
+            (pl.col("timestamp") >= start_utc) & (pl.col("timestamp") < end_utc)
         )
 
         if not filtered.is_empty():
@@ -50,8 +49,7 @@ def filter_intervals(
             break
 
         filtered = df.filter(
-            (pl.col("start_time") < end_utc)
-            & (pl.col("end_time") > start_utc)
+            (pl.col("start_time") < end_utc) & (pl.col("end_time") > start_utc)
         )
 
         if not filtered.is_empty():

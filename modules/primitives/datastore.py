@@ -39,6 +39,7 @@ def save_batches(
 
             first_batch = False
 
+
 @measure_time
 def save_dataframe(
     df: pl.DataFrame,
@@ -50,6 +51,7 @@ def save_dataframe(
 
     _validate_batch(df, schema)
     df.write_csv(output_path)
+
 
 @measure_generator_time
 def load_csv_batches(

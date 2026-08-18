@@ -15,9 +15,7 @@ def _validate_input(df: pl.DataFrame) -> None:
     missing_columns = required_columns - set(df.columns)
 
     if missing_columns:
-        raise ValueError(
-            f"required columns are missing: {missing_columns}"
-        )
+        raise ValueError(f"required columns are missing: {missing_columns}")
 
 
 def _distance_between_segments(
@@ -48,9 +46,7 @@ def remove_sudden_position_jumps(
     _validate_input(df)
 
     if df.is_empty():
-        return df.select(
-            list(RawPositionSchema.model_fields.keys())
-        )
+        return df.select(list(RawPositionSchema.model_fields.keys()))
 
     # distance_to_next가 jump_thres를 넘으면
     # 다음 point부터 새로운 segment로 분할
@@ -104,11 +100,7 @@ def remove_sudden_position_jumps(
         if distance <= same_place_thres:
             jump_segments.add(current["segment_id"])
 
-    cleaned = segmented.filter(
-        ~pl.col("segment_id").is_in(jump_segments)
-    )
+    cleaned = segmented.filter(~pl.col("segment_id").is_in(jump_segments))
 
     # 파생 컬럼 제거 후 RawPositionSchema 형태로 반환
-    return cleaned.select(
-        list(RawPositionSchema.model_fields.keys())
-    )
+    return cleaned.select(list(RawPositionSchema.model_fields.keys()))

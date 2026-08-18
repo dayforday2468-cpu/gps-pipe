@@ -2,7 +2,6 @@ import polars as pl
 
 from modules.primitives.decorators import measure_time
 
-
 EARTH_RADIUS_M = 6_371_000
 
 
@@ -32,18 +31,13 @@ def haversine_distance(df: pl.DataFrame) -> pl.DataFrame:
     delta_lat = lat2 - lat1
     delta_lon = lon2 - lon1
 
-    a = (
-        (delta_lat / 2).sin().pow(2)
-        + lat1.cos()
-        * lat2.cos()
-        * (delta_lon / 2).sin().pow(2)
-    )
+    a = (delta_lat / 2).sin().pow(2) + lat1.cos() * lat2.cos() * (
+        delta_lon / 2
+    ).sin().pow(2)
 
     c = 2 * pl.arctan2(
         a.sqrt(),
         (1 - a).sqrt(),
     )
 
-    return df.with_columns(
-        (EARTH_RADIUS_M * c).alias("distance_to_next")
-    )
+    return df.with_columns((EARTH_RADIUS_M * c).alias("distance_to_next"))
