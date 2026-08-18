@@ -6,7 +6,7 @@ from modules.primitives.decorators import measure_time
 EARTH_RADIUS_M = 6_371_000
 
 
-def _validate_coordinates(df: pl.DataFrame) -> None:
+def _validate_input(df: pl.DataFrame) -> None:
     required_columns = {"latitude", "longitude"}
 
     if not required_columns.issubset(df.columns):
@@ -21,7 +21,7 @@ def _validate_coordinates(df: pl.DataFrame) -> None:
 
 @measure_time
 def haversine_distance(df: pl.DataFrame) -> pl.DataFrame:
-    _validate_coordinates(df)
+    _validate_input(df)
 
     lat1 = pl.col("latitude").radians()
     lon1 = pl.col("longitude").radians()
