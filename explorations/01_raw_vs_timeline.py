@@ -144,12 +144,9 @@ if __name__ == "__main__":
     )
 
     # activity 시작점을 시각화용 latitude/longitude로 변환
-    activities_points = (
-        df.select(
-            pl.col("start_latitude").alias("latitude"),
-            pl.col("start_longitude").alias("longitude"),
-        )
-        for df in activities_filtered
+    activities_points = activities_filtered.select(
+        pl.col("start_latitude").alias("latitude"),
+        pl.col("start_longitude").alias("longitude"),
     )
 
     # GPS 데이터 비교 시각화
@@ -158,7 +155,7 @@ if __name__ == "__main__":
         show_legend=True,
     )
 
-    visualizer.add_batches(
+    visualizer.add(
         raw_filtered,
         label="Raw GPS",
         point_size=5,
@@ -169,7 +166,7 @@ if __name__ == "__main__":
         alpha=0.5,
     )
 
-    visualizer.add_batches(
+    visualizer.add(
         timeline_filtered,
         label="Timeline Path",
         point_size=7,
@@ -180,7 +177,7 @@ if __name__ == "__main__":
         alpha=0.8,
     )
 
-    visualizer.add_batches(
+    visualizer.add(
         visits_filtered,
         label="Visit",
         point_size=40,
@@ -189,7 +186,7 @@ if __name__ == "__main__":
         alpha=0.9,
     )
 
-    visualizer.add_batches(
+    visualizer.add(
         activities_points,
         label="Activity",
         point_size=30,
