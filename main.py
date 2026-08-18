@@ -22,6 +22,7 @@ from modules.primitives.schema import (
     VisitSchema,
 )
 from modules.haversine import haversine_distance
+from modules.sudden_position_jump import remove_sudden_position_jumps
 from modules.primitives.visualization import GPSVisualizer
 
 logger = get_logger(__name__)
@@ -114,4 +115,4 @@ def initialize_pipeline() -> DataBatches:
 
 
 if __name__ == "__main__":
-    batches = initialize_pipeline()    
+    batches = initialize_pipeline()

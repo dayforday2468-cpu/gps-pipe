@@ -2,7 +2,6 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
-import matplotlib.pyplot as plt
 
 import polars as pl
 
@@ -23,6 +22,7 @@ from modules.primitives.schema import (
     VisitSchema,
 )
 from modules.haversine import haversine_distance
+from modules.sudden_position_jump import remove_sudden_position_jumps
 from modules.primitives.visualization import GPSVisualizer
 
 logger = get_logger(__name__)
@@ -117,6 +117,7 @@ def initialize_pipeline() -> DataBatches:
 if __name__ == "__main__":
     batches = initialize_pipeline()
 
+    # 하루치 raw position 필터링
     start = datetime(2026, 8, 1, 0, 0)
     end = datetime(2026, 8, 2, 0, 0)
 
@@ -126,40 +127,66 @@ if __name__ == "__main__":
         end,
     )
 
+    # 연속 GPS point 간 거리 계산
     raw_with_distance = haversine_distance(raw_filtered)
 
-    distances = (
-        raw_with_distance
-        .select("distance_to_next")
-        .drop_nulls()
+    # sudden position jump 제거
+    cleaned_positions = remove_sudden_position_jumps(
+        raw_with_distance,
+        jump_thres=125,          # 거리 분포를 보고 조정
+        same_place_thres=50,     # 앞/뒤 segment 평균 위치가 같은 장소인지 판단
+        max_jump_points=3,       # 중간 segment 최대 point 수
     )
 
-    print("=== Distance Summary ===")
-    print(distances.describe())
-
-    print("\n=== Largest Distances ===")
-    print(
-        raw_with_distance
-        .select(
-            "timestamp",
-            "latitude",
-            "longitude",
-            "distance_to_next",
-        )
-        .drop_nulls()
-        .sort("distance_to_next", descending=True)
-        .head(20)
+    # 제거된 point 추출
+    removed_positions = raw_filtered.join(
+        cleaned_positions.select("timestamp"),
+        on="timestamp",
+        how="anti",
     )
 
-    plt.figure(figsize=(10, 6))
+    print(f"before:  {raw_filtered.height}")
+    print(f"after:   {cleaned_positions.height}")
+    print(f"removed: {removed_positions.height}")
 
-    plt.hist(
-        distances["distance_to_next"].to_numpy(),
-        bins=50,
+    # clean 결과 시각화
+    visualizer = GPSVisualizer(
+        title="Sudden Position Jump Removal - 2026-08-11",
+        show_legend=True,
     )
 
-    plt.title("Distribution of Distance Between Consecutive GPS Points")
-    plt.xlabel("Distance to Next Point (m)")
-    plt.ylabel("Count")
+    # 원본 trajectory - 배경처럼 연하게 표시
+    visualizer.add(
+        raw_filtered,
+        label="Raw GPS",
+        point_size=2,
+        point_color="gray",
+        show_line=True,
+        line_color="gray",
+        line_width=0.5,
+        alpha=0.15,
+    )
 
-    plt.show()
+    # clean 후 trajectory
+    visualizer.add(
+        cleaned_positions,
+        label="Cleaned GPS",
+        point_size=7,
+        point_color="blue",
+        show_line=True,
+        line_color="blue",
+        line_width=1.2,
+        alpha=0.8,
+    )
+
+    # 실제 제거된 jump point
+    visualizer.add(
+        removed_positions,
+        label="Removed Jump",
+        point_size=50,
+        point_color="red",
+        show_line=False,
+        alpha=1.0,
+    )
+
+    visualizer.show()
