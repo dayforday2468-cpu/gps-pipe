@@ -2,7 +2,6 @@ import polars as pl
 
 from modules.haversine import haversine_expr
 from modules.primitives.decorators import measure_time
-from modules.primitives.schema import RawPositionSchema
 
 
 def _validate_input(df: pl.DataFrame) -> None:
@@ -32,7 +31,7 @@ def remove_sudden_position_jumps(
     _validate_input(df)
 
     if df.is_empty():
-        return df.select(list(RawPositionSchema.model_fields.keys()))
+        return df
 
     segmented = df.with_columns(
         (
@@ -80,4 +79,4 @@ def remove_sudden_position_jumps(
 
     cleaned = segmented.filter(~pl.col("segment_id").is_in(jump_segments))
 
-    return cleaned.select(list(RawPositionSchema.model_fields.keys()))
+    return cleaned.drop("segment_id")

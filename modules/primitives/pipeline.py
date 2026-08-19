@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
 
 import polars as pl
 
@@ -31,11 +32,12 @@ def init_data_directory() -> None:
         if path.resolve() == source_path:
             continue
 
-        if path.is_file():
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
             path.unlink()
 
     logger.debug("initialize data directory")
-
 
 @dataclass
 class DataBatches:
