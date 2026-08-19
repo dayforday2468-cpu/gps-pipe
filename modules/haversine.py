@@ -18,26 +18,44 @@ def _validate_input(df: pl.DataFrame) -> None:
         raise ValueError("longitude must be between -180 and 180")
 
 
-@measure_time
-def haversine_distance(df: pl.DataFrame) -> pl.DataFrame:
-    _validate_input(df)
-
-    lat1 = pl.col("latitude").radians()
-    lon1 = pl.col("longitude").radians()
-
-    lat2 = lat1.shift(-1)
-    lon2 = lon1.shift(-1)
+def haversine_expr(
+    lat1: pl.Expr,
+    lon1: pl.Expr,
+    lat2: pl.Expr,
+    lon2: pl.Expr,
+) -> pl.Expr:
+    lat1 = lat1.radians()
+    lon1 = lon1.radians()
+    lat2 = lat2.radians()
+    lon2 = lon2.radians()
 
     delta_lat = lat2 - lat1
     delta_lon = lon2 - lon1
 
-    a = (delta_lat / 2).sin().pow(2) + lat1.cos() * lat2.cos() * (
-        delta_lon / 2
-    ).sin().pow(2)
+    a = (
+        (delta_lat / 2).sin().pow(2)
+        + lat1.cos()
+        * lat2.cos()
+        * (delta_lon / 2).sin().pow(2)
+    )
 
     c = 2 * pl.arctan2(
         a.sqrt(),
         (1 - a).sqrt(),
     )
 
-    return df.with_columns((EARTH_RADIUS_M * c).alias("distance_to_next"))
+    return EARTH_RADIUS_M * c
+
+
+@measure_time
+def haversine_distance(df: pl.DataFrame) -> pl.DataFrame:
+    _validate_input(df)
+
+    return df.with_columns(
+        haversine_expr(
+            pl.col("latitude"),
+            pl.col("longitude"),
+            pl.col("latitude").shift(-1),
+            pl.col("longitude").shift(-1),
+        ).alias("distance_to_next")
+    )

@@ -1,39 +1,25 @@
 import polars as pl
 
-from modules.haversine import haversine_distance
+from modules.haversine import haversine_expr
 from modules.primitives.decorators import measure_time
 from modules.primitives.schema import RawPositionSchema
 
 
 def _validate_input(df: pl.DataFrame) -> None:
-    required_columns = {
-        "latitude",
-        "longitude",
-        "distance_to_next",
-    }
-
+    required_columns = {"latitude", "longitude", "distance_to_next"}
     missing_columns = required_columns - set(df.columns)
 
     if missing_columns:
         raise ValueError(f"required columns are missing: {missing_columns}")
 
+    if not df["latitude"].is_between(-90, 90).all():
+        raise ValueError("latitude must be between -90 and 90")
 
-def _distance_between_segments(
-    prev_latitude: float,
-    prev_longitude: float,
-    next_latitude: float,
-    next_longitude: float,
-) -> float:
-    segment_centers = pl.DataFrame(
-        {
-            "latitude": [prev_latitude, next_latitude],
-            "longitude": [prev_longitude, next_longitude],
-        }
-    )
+    if not df["longitude"].is_between(-180, 180).all():
+        raise ValueError("longitude must be between -180 and 180")
 
-    result = haversine_distance(segment_centers)
-
-    return result["distance_to_next"][0]
+    if df["distance_to_next"].drop_nulls().lt(0).any():
+        raise ValueError("distance_to_next must be greater than or equal to 0")
 
 
 @measure_time
@@ -48,8 +34,6 @@ def remove_sudden_position_jumps(
     if df.is_empty():
         return df.select(list(RawPositionSchema.model_fields.keys()))
 
-    # distance_to_next가 jump_thres를 넘으면
-    # 다음 point부터 새로운 segment로 분할
     segmented = df.with_columns(
         (
             pl.col("distance_to_next")
@@ -61,46 +45,39 @@ def remove_sudden_position_jumps(
         ).alias("segment_id")
     )
 
-    # segment별 대표 위치와 point 개수 계산
     segments = (
-        segmented.group_by(
-            "segment_id",
-            maintain_order=True,
-        )
+        segmented.group_by("segment_id", maintain_order=True)
         .agg(
             pl.col("latitude").mean().alias("mean_latitude"),
             pl.col("longitude").mean().alias("mean_longitude"),
             pl.len().alias("point_count"),
         )
         .sort("segment_id")
+        .with_columns(
+            pl.col("mean_latitude").shift(1).alias("prev_latitude"),
+            pl.col("mean_longitude").shift(1).alias("prev_longitude"),
+            pl.col("mean_latitude").shift(-1).alias("next_latitude"),
+            pl.col("mean_longitude").shift(-1).alias("next_longitude"),
+        )
+        .with_columns(
+            haversine_expr(
+                pl.col("prev_latitude"),
+                pl.col("prev_longitude"),
+                pl.col("next_latitude"),
+                pl.col("next_longitude"),
+            ).alias("prev_next_distance")
+        )
     )
 
-    segment_rows = segments.to_dicts()
-    jump_segments = set()
-
-    # 첫/마지막 segment는 앞뒤 segment가 모두 없으므로 제외
-    for i in range(1, len(segment_rows) - 1):
-        previous = segment_rows[i - 1]
-        current = segment_rows[i]
-        next_segment = segment_rows[i + 1]
-
-        # 너무 긴 segment라면 sudden jump로 보지 않음
-        if current["point_count"] > max_jump_points:
-            continue
-
-        distance = _distance_between_segments(
-            previous["mean_latitude"],
-            previous["mean_longitude"],
-            next_segment["mean_latitude"],
-            next_segment["mean_longitude"],
+    jump_segments = (
+        segments.filter(
+            (pl.col("point_count") <= max_jump_points)
+            & (pl.col("prev_next_distance") <= same_place_thres)
         )
-
-        # 앞뒤 segment가 같은 장소라면
-        # 가운데 짧은 segment를 sudden jump로 판단
-        if distance <= same_place_thres:
-            jump_segments.add(current["segment_id"])
+        .get_column("segment_id")
+        .to_list()
+    )
 
     cleaned = segmented.filter(~pl.col("segment_id").is_in(jump_segments))
 
-    # 파생 컬럼 제거 후 RawPositionSchema 형태로 반환
     return cleaned.select(list(RawPositionSchema.model_fields.keys()))
