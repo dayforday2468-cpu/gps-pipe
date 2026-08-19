@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     raw_with_distance = haversine_distance(raw_filtered)
 
-    jump_thres = 500
+    jump_thres = 300
 
     # jump threshold를 기준으로 segment 분할
     segmented = raw_with_distance.with_columns(
@@ -179,6 +179,43 @@ if __name__ == "__main__":
         .unique(maintain_order=True)
         .to_list()
     )
+
+    print("\n=== Distance Between Previous and Next Segment Means ===")
+
+    for i in range(1, len(segment_ids) - 1):
+        prev_id = segment_ids[i - 1]
+        current_id = segment_ids[i]
+        next_id = segment_ids[i + 1]
+
+        prev_mean = segment_means.filter(
+            pl.col("segment_id") == prev_id
+        )
+
+        next_mean = segment_means.filter(
+            pl.col("segment_id") == next_id
+        )
+
+        mean_pair = pl.concat(
+            [
+                prev_mean.select("latitude", "longitude"),
+                next_mean.select("latitude", "longitude"),
+            ]
+        )
+
+        distance = haversine_distance(mean_pair)["distance_to_next"][0]
+
+        current_point_count = (
+            segment_means
+            .filter(pl.col("segment_id") == current_id)
+            ["point_count"][0]
+        )
+
+        print(
+            f"segment {current_id}: "
+            f"prev={prev_id}, next={next_id}, "
+            f"point_count={current_point_count}, "
+            f"prev-next distance={distance:.2f} m"
+        )
 
     # 평균 위치는 timestamp가 없으므로
     # time mode에서도 처음부터 모두 표시됨
@@ -258,9 +295,9 @@ if __name__ == "__main__":
                 alpha=0.8,
             )
 
-    # visualizer.animate(
-    #     interval=50,
-    #     repeat=False,
-    #     mode="time",
-    # )
-    visualizer.show()
+    visualizer.animate(
+        interval=50,
+        repeat=False,
+        mode="time",
+    )
+    # visualizer.show()

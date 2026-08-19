@@ -133,8 +133,8 @@ if __name__ == "__main__":
     # sudden position jump 제거
     cleaned_positions = remove_sudden_position_jumps(
         raw_with_distance,
-        jump_thres=500,  # 거리 분포를 보고 조정
-        same_place_thres=50,  # 앞/뒤 segment 평균 위치가 같은 장소인지 판단
+        jump_thres=300,  # 거리 분포를 보고 조정
+        same_place_thres=200,  # 앞/뒤 segment 평균 위치가 같은 장소인지 판단
         max_jump_points=3,  # 중간 segment 최대 point 수
     )
 
@@ -189,5 +189,5 @@ if __name__ == "__main__":
         alpha=1.0,
     )
 
-    # visualizer.animate(interval=50, repeat=True)
+    # visualizer.animate(interval=50, repeat=False)
     visualizer.show()
