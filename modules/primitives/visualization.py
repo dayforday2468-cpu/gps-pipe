@@ -193,9 +193,7 @@ class GPSVisualizer:
             ax.legend()
 
         if mode == "index":
-            frames = range(
-                max(layer["data"].height for layer in self._layers)
-            )
+            frames = range(max(layer["data"].height for layer in self._layers))
 
         else:
             timestamps = []
@@ -223,20 +221,15 @@ class GPSVisualizer:
                     if "timestamp" not in data.columns:
                         visible = data
                     else:
-                        visible = data.filter(
-                            pl.col("timestamp") <= frame
-                        )
+                        visible = data.filter(pl.col("timestamp") <= frame)
 
                 longitude = visible["longitude"]
                 latitude = visible["latitude"]
 
-                coordinates = (
-                    visible.select(
-                        "longitude",
-                        "latitude",
-                    )
-                    .to_numpy()
-                )
+                coordinates = visible.select(
+                    "longitude",
+                    "latitude",
+                ).to_numpy()
 
                 artist["scatter"].set_offsets(coordinates)
                 updated_artists.append(artist["scatter"])

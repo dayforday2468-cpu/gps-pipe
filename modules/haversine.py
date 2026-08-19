@@ -32,12 +32,9 @@ def haversine_expr(
     delta_lat = lat2 - lat1
     delta_lon = lon2 - lon1
 
-    a = (
-        (delta_lat / 2).sin().pow(2)
-        + lat1.cos()
-        * lat2.cos()
-        * (delta_lon / 2).sin().pow(2)
-    )
+    a = (delta_lat / 2).sin().pow(2) + lat1.cos() * lat2.cos() * (
+        delta_lon / 2
+    ).sin().pow(2)
 
     c = 2 * pl.arctan2(
         a.sqrt(),
