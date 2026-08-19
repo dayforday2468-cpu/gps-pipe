@@ -119,6 +119,7 @@ if __name__ == "__main__":
 
     start = datetime(2026, 8, 1, 0, 0)
     end = datetime(2026, 8, 2, 0, 0)
+    time_range = f"{start:%Y-%m-%d %H:%M} ~ {end:%Y-%m-%d %H:%M}"
 
     raw_filtered = filter_points(
         batches.raw_positions,
@@ -153,7 +154,7 @@ if __name__ == "__main__":
         bins=50,
     )
 
-    plt.title("Distribution of Distance Between Consecutive GPS Points")
+    plt.title(f"Distribution of Distance - {time_range}")
     plt.xlabel("Distance to Next Point (m)")
     plt.ylabel("Count")
 

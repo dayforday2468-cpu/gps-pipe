@@ -120,6 +120,7 @@ if __name__ == "__main__":
     # 하루치 raw position 필터링
     start = datetime(2026, 8, 1, 7, 0)
     end = datetime(2026, 8, 2, 0, 0)
+    time_range = f"{start:%Y-%m-%d %H:%M} ~ {end:%Y-%m-%d %H:%M}"
 
     raw_filtered = filter_points(
         batches.raw_positions,
@@ -151,7 +152,7 @@ if __name__ == "__main__":
 
     # clean 결과 시각화
     visualizer = GPSVisualizer(
-        title="Sudden Position Jump Removal - 2026-08-11",
+        title=f"Sudden Position Jump Removal - {time_range}",
         show_legend=True,
     )
 

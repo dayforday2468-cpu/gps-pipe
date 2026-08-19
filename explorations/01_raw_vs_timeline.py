@@ -118,6 +118,8 @@ if __name__ == "__main__":
     # 하루치 데이터 필터링
     start = datetime(2026, 8, 11, 0, 0)
     end = datetime(2026, 8, 12, 0, 0)
+    time_range = f"{start:%Y-%m-%d %H:%M} ~ {end:%Y-%m-%d %H:%M}"
+
 
     raw_filtered = filter_points(
         batches.raw_positions,
@@ -151,7 +153,7 @@ if __name__ == "__main__":
 
     # GPS 데이터 비교 시각화
     visualizer = GPSVisualizer(
-        title="GPS Data Comparison - 2026-08-11",
+        title=f"GPS Data Comparison - {time_range}",
         show_legend=True,
     )
 
