@@ -3,7 +3,7 @@ import math
 
 import matplotlib.pyplot as plt
 
-from modules.dbscan_tuning import calculate_k_distances
+from modules.dbscan_tuning import calculate_k_distances, find_knee
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 
@@ -28,9 +28,19 @@ if __name__ == "__main__":
         k=k,
     )
 
+    eps = find_knee(k_distances)
+
     plt.plot(k_distances.to_list())
+    plt.axhline(
+        y=eps,
+        color="red",
+        linestyle="--",
+        label=f"Eps = {eps:.2f} m",
+    )
+
     plt.xlabel("Points sorted by k-distance")
     plt.ylabel(f"{k}-NN distance (m)")
     plt.title(f"{k}-distance graph")
     plt.grid()
+    plt.legend()
     plt.show()

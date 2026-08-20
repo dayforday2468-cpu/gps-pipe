@@ -1,4 +1,3 @@
-import numpy as np
 import polars as pl
 
 from modules.haversine import haversine_expr
@@ -37,3 +36,43 @@ def calculate_k_distances(
         distances.append(k_distance)
 
     return pl.Series("k_distance", distances).sort(descending=True)
+
+def find_knee(
+    values: pl.Series,
+    normalize: bool = True,
+) -> float:
+    if values.is_empty():
+        raise ValueError("values must not be empty")
+
+    points = pl.DataFrame(
+        {
+            "index": pl.int_range(0, len(values), eager=True),
+            "value": values,
+        }
+    )
+
+    if normalize:
+        points = points.with_columns(
+            (
+                pl.col("index")
+                / (pl.col("index").max() - pl.col("index").min())
+            ).alias("x"),
+            (
+                (pl.col("value") - pl.col("value").min())
+                / (pl.col("value").max() - pl.col("value").min())
+            ).alias("y"),
+        )
+    else:
+        points = points.with_columns(
+            pl.col("index").alias("x"),
+            pl.col("value").alias("y"),
+        )
+
+    knee = (
+        points
+        .with_columns((pl.col("x") + pl.col("y")).alias("score"))
+        .sort("score")
+        .row(0, named=True)
+    )
+
+    return knee["value"]
