@@ -13,6 +13,7 @@ if __name__ == "__main__":
 
     start = datetime(2026, 8, 1, 7, 0)
     end = datetime(2026, 8, 2, 0, 0)
+    time_range = f"{start:%Y-%m-%d %H:%M} ~ {end:%Y-%m-%d %H:%M}"
 
     positions = filter_points(
         batches.raw_positions,
@@ -43,7 +44,7 @@ if __name__ == "__main__":
 
     plt.xlabel("Points sorted by k-distance")
     plt.ylabel(f"{k}-NN distance (m)")
-    plt.title(f"Spatial {k}-distance graph")
+    plt.title(f"Spatial {k}-distance graph - {time_range}")
     plt.grid()
     plt.legend()
     plt.show()
