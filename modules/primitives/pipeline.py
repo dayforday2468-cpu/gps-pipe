@@ -39,6 +39,7 @@ def init_data_directory() -> None:
 
     logger.debug("initialize data directory")
 
+
 @dataclass
 class DataBatches:
     @property

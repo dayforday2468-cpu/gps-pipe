@@ -3,7 +3,6 @@ import polars as pl
 from modules.haversine import haversine_expr
 from modules.primitives.decorators import measure_time
 
-
 UNASSIGNED = -1
 NOISE = 0
 
@@ -53,9 +52,7 @@ def _retrieve_neighbors(
                 pl.col("latitude"),
                 pl.col("longitude"),
             ).alias("_spatial_distance"),
-            (
-                pl.col("timestamp") - pl.lit(point["timestamp"])
-            )
+            (pl.col("timestamp") - pl.lit(point["timestamp"]))
             .abs()
             .dt.total_seconds()
             .alias("_temporal_distance"),
@@ -151,6 +148,4 @@ def st_dbscan(
             min_pts,
         )
 
-    return df.with_columns(
-        pl.Series("cluster_id", labels)
-    )
+    return df.with_columns(pl.Series("cluster_id", labels))

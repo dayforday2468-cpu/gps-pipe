@@ -54,9 +54,7 @@ if __name__ == "__main__":
         title=f"ST-DBSCAN clustering - {time_range}",
     )
 
-    noise = clustered.filter(
-        clustered["cluster_id"] == 0
-    )
+    noise = clustered.filter(clustered["cluster_id"] == 0)
 
     visualizer.add(
         noise,
@@ -65,17 +63,14 @@ if __name__ == "__main__":
     )
 
     cluster_ids = (
-        clustered
-        .filter(clustered["cluster_id"] > 0)
+        clustered.filter(clustered["cluster_id"] > 0)
         .get_column("cluster_id")
         .unique()
         .sort()
     )
 
     for cluster_id in cluster_ids:
-        cluster = clustered.filter(
-            clustered["cluster_id"] == cluster_id
-        )
+        cluster = clustered.filter(clustered["cluster_id"] == cluster_id)
 
         visualizer.add(
             cluster,

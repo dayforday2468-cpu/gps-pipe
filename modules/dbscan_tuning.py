@@ -4,7 +4,6 @@ import polars as pl
 
 from modules.haversine import haversine_expr
 
-
 DistanceExpr = Callable[[dict], pl.Expr]
 
 
@@ -24,15 +23,9 @@ def _calculate_k_distances(
     for i in range(len(df)):
         point = df.row(i, named=True)
 
-        distance_df = df.with_columns(
-            distance_expr(point).alias("distance")
-        )
+        distance_df = df.with_columns(distance_expr(point).alias("distance"))
 
-        k_distance = (
-            distance_df
-            .get_column("distance")
-            .sort()[k]
-        )
+        k_distance = distance_df.get_column("distance").sort()[k]
 
         distances.append(k_distance)
 
@@ -64,14 +57,15 @@ def calculate_temporal_k_distances(
 ) -> pl.Series:
     def temporal_distance(point: dict) -> pl.Expr:
         return (
-            pl.col("timestamp") - pl.lit(point["timestamp"])
-        ).abs().dt.total_seconds()
+            (pl.col("timestamp") - pl.lit(point["timestamp"])).abs().dt.total_seconds()
+        )
 
     return _calculate_k_distances(
         df,
         k,
         temporal_distance,
     )
+
 
 def find_knee(
     values: pl.Series,
@@ -89,10 +83,9 @@ def find_knee(
 
     if normalize:
         points = points.with_columns(
-            (
-                pl.col("index")
-                / (pl.col("index").max() - pl.col("index").min())
-            ).alias("x"),
+            (pl.col("index") / (pl.col("index").max() - pl.col("index").min())).alias(
+                "x"
+            ),
             (
                 (pl.col("value") - pl.col("value").min())
                 / (pl.col("value").max() - pl.col("value").min())
@@ -105,8 +98,7 @@ def find_knee(
         )
 
     knee = (
-        points
-        .with_columns((pl.col("x") + pl.col("y")).alias("score"))
+        points.with_columns((pl.col("x") + pl.col("y")).alias("score"))
         .sort("score")
         .row(0, named=True)
     )

@@ -7,7 +7,6 @@ from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.schema import RawPositionSchema
 from modules.sudden_position_jump import remove_sudden_position_jumps
 
-
 if __name__ == "__main__":
     batches = initialize_pipeline()
 
@@ -15,7 +14,6 @@ if __name__ == "__main__":
     start = datetime(2026, 8, 11, 0, 0)
     end = datetime(2026, 8, 12, 0, 0)
     time_range = f"{start:%Y-%m-%d %H:%M} ~ {end:%Y-%m-%d %H:%M}"
-
 
     raw_positions = filter_points(
         batches.raw_positions,

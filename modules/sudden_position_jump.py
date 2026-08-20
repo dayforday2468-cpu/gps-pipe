@@ -30,25 +30,22 @@ def remove_sudden_position_jumps(
     if df.is_empty():
         return df
 
-    segmented = (
-        df.with_columns(
-            haversine_expr(
-                pl.col("latitude"),
-                pl.col("longitude"),
-                pl.col("latitude").shift(-1),
-                pl.col("longitude").shift(-1),
-            ).alias("_distance_to_next")
-        )
-        .with_columns(
-            (
-                pl.col("_distance_to_next")
-                .shift(1)
-                .fill_null(0)
-                .gt(jump_thres)
-                .cast(pl.Int64)
-                .cum_sum()
-            ).alias("segment_id")
-        )
+    segmented = df.with_columns(
+        haversine_expr(
+            pl.col("latitude"),
+            pl.col("longitude"),
+            pl.col("latitude").shift(-1),
+            pl.col("longitude").shift(-1),
+        ).alias("_distance_to_next")
+    ).with_columns(
+        (
+            pl.col("_distance_to_next")
+            .shift(1)
+            .fill_null(0)
+            .gt(jump_thres)
+            .cast(pl.Int64)
+            .cum_sum()
+        ).alias("segment_id")
     )
 
     segments = (
@@ -84,9 +81,7 @@ def remove_sudden_position_jumps(
         .to_list()
     )
 
-    cleaned = segmented.filter(
-        ~pl.col("segment_id").is_in(jump_segments)
-    )
+    cleaned = segmented.filter(~pl.col("segment_id").is_in(jump_segments))
 
     return cleaned.drop(
         "_distance_to_next",
