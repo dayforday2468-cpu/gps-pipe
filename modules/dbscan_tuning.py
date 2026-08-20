@@ -1,11 +1,17 @@
+from collections.abc import Callable
+
 import polars as pl
 
 from modules.haversine import haversine_expr
 
 
-def calculate_k_distances(
+DistanceExpr = Callable[[dict], pl.Expr]
+
+
+def _calculate_k_distances(
     df: pl.DataFrame,
     k: int,
+    distance_expr: DistanceExpr,
 ) -> pl.Series:
     if k < 1:
         raise ValueError("k must be greater than or equal to 1")
@@ -19,12 +25,7 @@ def calculate_k_distances(
         point = df.row(i, named=True)
 
         distance_df = df.with_columns(
-            haversine_expr(
-                pl.lit(point["latitude"]),
-                pl.lit(point["longitude"]),
-                pl.col("latitude"),
-                pl.col("longitude"),
-            ).alias("distance")
+            distance_expr(point).alias("distance")
         )
 
         k_distance = (
@@ -36,6 +37,41 @@ def calculate_k_distances(
         distances.append(k_distance)
 
     return pl.Series("k_distance", distances).sort(descending=True)
+
+
+def calculate_spatial_k_distances(
+    df: pl.DataFrame,
+    k: int,
+) -> pl.Series:
+    def spatial_distance(point: dict) -> pl.Expr:
+        return haversine_expr(
+            pl.lit(point["latitude"]),
+            pl.lit(point["longitude"]),
+            pl.col("latitude"),
+            pl.col("longitude"),
+        )
+
+    return _calculate_k_distances(
+        df,
+        k,
+        spatial_distance,
+    )
+
+
+def calculate_temporal_k_distances(
+    df: pl.DataFrame,
+    k: int,
+) -> pl.Series:
+    def temporal_distance(point: dict) -> pl.Expr:
+        return (
+            pl.col("timestamp") - pl.lit(point["timestamp"])
+        ).abs().dt.total_seconds()
+
+    return _calculate_k_distances(
+        df,
+        k,
+        temporal_distance,
+    )
 
 def find_knee(
     values: pl.Series,

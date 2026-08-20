@@ -3,7 +3,7 @@ import math
 
 import matplotlib.pyplot as plt
 
-from modules.dbscan_tuning import calculate_spatial_k_distances, find_knee
+from modules.dbscan_tuning import calculate_temporal_k_distances, find_knee
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     min_pts = math.ceil(math.log(len(positions)))
     k = min_pts
 
-    k_distances = calculate_spatial_k_distances(
+    k_distances = calculate_temporal_k_distances(
         positions,
         k=k,
     )
@@ -31,19 +31,19 @@ if __name__ == "__main__":
     eps = find_knee(k_distances)
 
     print(f"MinPts: {min_pts}")
-    print(f"Spatial Eps: {eps:.2f} m")
+    print(f"Temporal Eps: {eps:.2f} s")
 
     plt.plot(k_distances.to_list())
     plt.axhline(
         y=eps,
         color="red",
         linestyle="--",
-        label=f"Eps = {eps:.2f} m",
+        label=f"Eps = {eps:.2f} s",
     )
 
     plt.xlabel("Points sorted by k-distance")
-    plt.ylabel(f"{k}-NN distance (m)")
-    plt.title(f"Spatial {k}-distance graph")
+    plt.ylabel(f"{k}-NN distance (s)")
+    plt.title(f"Temporal {k}-distance graph")
     plt.grid()
     plt.legend()
     plt.show()
