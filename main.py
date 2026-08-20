@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from modules.haversine import haversine_distance
 from modules.primitives.config import DATA_DIR, PROCESSED_DIR
 from modules.primitives.datafilter import filter_points
 from modules.primitives.datastore import save_dataframe
@@ -24,10 +23,8 @@ if __name__ == "__main__":
         end,
     )
 
-    raw_with_distance = haversine_distance(raw_positions)
-
     cleaned_data = remove_sudden_position_jumps(
-        raw_with_distance,
+        raw_positions,
         jump_thres=300,
         same_place_thres=200,
         max_jump_points=3,

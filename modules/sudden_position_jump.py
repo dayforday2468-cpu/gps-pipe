@@ -5,7 +5,7 @@ from modules.primitives.decorators import measure_time
 
 
 def _validate_input(df: pl.DataFrame) -> None:
-    required_columns = {"latitude", "longitude", "distance_to_next"}
+    required_columns = {"latitude", "longitude"}
     missing_columns = required_columns - set(df.columns)
 
     if missing_columns:
@@ -16,9 +16,6 @@ def _validate_input(df: pl.DataFrame) -> None:
 
     if not df["longitude"].is_between(-180, 180).all():
         raise ValueError("longitude must be between -180 and 180")
-
-    if df["distance_to_next"].drop_nulls().lt(0).any():
-        raise ValueError("distance_to_next must be greater than or equal to 0")
 
 
 @measure_time
@@ -33,15 +30,25 @@ def remove_sudden_position_jumps(
     if df.is_empty():
         return df
 
-    segmented = df.with_columns(
-        (
-            pl.col("distance_to_next")
-            .shift(1)
-            .fill_null(0)
-            .gt(jump_thres)
-            .cast(pl.Int64)
-            .cum_sum()
-        ).alias("segment_id")
+    segmented = (
+        df.with_columns(
+            haversine_expr(
+                pl.col("latitude"),
+                pl.col("longitude"),
+                pl.col("latitude").shift(-1),
+                pl.col("longitude").shift(-1),
+            ).alias("_distance_to_next")
+        )
+        .with_columns(
+            (
+                pl.col("_distance_to_next")
+                .shift(1)
+                .fill_null(0)
+                .gt(jump_thres)
+                .cast(pl.Int64)
+                .cum_sum()
+            ).alias("segment_id")
+        )
     )
 
     segments = (
@@ -77,6 +84,11 @@ def remove_sudden_position_jumps(
         .to_list()
     )
 
-    cleaned = segmented.filter(~pl.col("segment_id").is_in(jump_segments))
+    cleaned = segmented.filter(
+        ~pl.col("segment_id").is_in(jump_segments)
+    )
 
-    return cleaned.drop("segment_id")
+    return cleaned.drop(
+        "_distance_to_next",
+        "segment_id",
+    )

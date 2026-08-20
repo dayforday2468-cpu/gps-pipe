@@ -20,12 +20,9 @@ if __name__ == "__main__":
         end,
     )
 
-    # 연속 GPS point 간 거리 계산
-    raw_with_distance = haversine_distance(raw_filtered)
-
     # sudden position jump 제거
     cleaned_positions = remove_sudden_position_jumps(
-        raw_with_distance,
+        raw_filtered,
         jump_thres=300,
         same_place_thres=200,
         max_jump_points=3,
