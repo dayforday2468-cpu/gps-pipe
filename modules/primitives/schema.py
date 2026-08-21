@@ -44,3 +44,7 @@ class ActivitySchema(BaseModel):
 
     probability: float = Field(ge=0, le=1)
     activity_probability: float = Field(ge=0, le=1)
+
+
+class ClusteredPositionSchema(RawPositionSchema):
+    cluster_id: int = Field(ge=0)
