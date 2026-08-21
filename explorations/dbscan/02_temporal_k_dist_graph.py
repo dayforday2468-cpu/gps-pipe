@@ -3,7 +3,7 @@ import math
 
 import matplotlib.pyplot as plt
 
-from modules.dbscan_tuning import calculate_temporal_k_distances, find_knee
+from modules.parameter_tuning import calculate_temporal_k_distances, find_knee
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 

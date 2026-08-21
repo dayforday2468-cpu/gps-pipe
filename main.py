@@ -2,7 +2,7 @@ from datetime import datetime
 import math
 
 from modules.dbscan import st_dbscan
-from modules.dbscan_tuning import (
+from modules.parameter_tuning import (
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
     find_knee,

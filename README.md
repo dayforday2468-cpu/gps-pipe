@@ -70,7 +70,7 @@ gps-pipe/
 │   ├── haversine.py
 │   ├── sudden_position_jump.py
 │   ├── dbscan.py
-│   ├── dbscan_tuning.py
+│   ├── parameter_tuning.py
 │   └── primitives/
 │       ├── __init__.py
 │       ├── config.py
@@ -139,12 +139,11 @@ GPS의 Sudden Position Jump를 제거합니다.
 공간 거리와 시간 거리로 구성된 neighborhood를 이용하여 core point를 찾고, density-reachable한 point를 확장하여 cluster를 생성합니다.
 
 
-#### `dbscan_tuning.py`
+#### `parameter_tuning.py`
 
-ST-DBSCAN 파라미터 분석을 위한 기능을 제공합니다.
+파이프라인에서 사용하는 파라미터 튜닝 기능을 제공합니다.
 
-공간 및 시간 k-distance를 계산하고 k-distance graph의 knee를 탐지하여 Spatial Eps와 Temporal Eps 후보를 결정하는 데 사용합니다.
-
+공간 및 시간 k-distance 계산과 knee 탐지를 통해 ST-DBSCAN의 Spatial Eps와 Temporal Eps 후보를 결정하고, Sudden Position Jump의 거리 임계값과 같은 다른 파라미터 튜닝에도 활용합니다.
 
 ### `modules/primitives/`
 

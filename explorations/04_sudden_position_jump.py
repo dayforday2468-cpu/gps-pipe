@@ -5,6 +5,7 @@ from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
 from modules.sudden_position_jump import remove_sudden_position_jumps
+from modules.parameter_tuning import find_knee
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -20,10 +21,23 @@ if __name__ == "__main__":
         end,
     )
 
+    positions_with_distance = haversine_distance(raw_filtered)
+
+    distances = (
+        positions_with_distance
+        .get_column("distance_to_next")
+        .drop_nulls()
+        .sort(descending=True)
+    )
+
+    jump_thres = find_knee(distances)
+
+    print(f"Jump Threshold: {jump_thres:.2f} m")
+
     # sudden position jump 제거
     cleaned_positions = remove_sudden_position_jumps(
         raw_filtered,
-        jump_thres=300,
+        jump_thres=jump_thres,
         same_place_thres=200,
         max_jump_points=3,
     )
