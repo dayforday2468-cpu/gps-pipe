@@ -2,10 +2,11 @@ from datetime import datetime
 import math
 
 from modules.dbscan import st_dbscan
-from modules.haversine import haversine_distance
 from modules.parameter_tuning import (
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
+    estimate_jump_threshold,
+    estimate_same_place_threshold,
     find_knee,
 )
 from modules.primitives.config import PROCESSED_DIR
@@ -29,22 +30,18 @@ if __name__ == "__main__":
     )
 
     # Sudden Position Jump 파라미터를 추정한다.
-    raw_with_distance = haversine_distance(raw_positions)
+    jump_thres = estimate_jump_threshold(raw_positions)
 
-    distances = (
-        raw_with_distance.get_column("distance_to_next")
-        .drop_nulls()
-        .sort(descending=True)
+    same_place_thres = estimate_same_place_threshold(
+        raw_positions,
+        jump_thres=jump_thres,
     )
-
-    jump_thres = find_knee(distances)
 
     # Sudden Position Jump를 제거하여 GPS 데이터를 정제한다.
     cleaned_data = remove_sudden_position_jumps(
         raw_positions,
         jump_thres=jump_thres,
-        same_place_thres=200,
-        max_jump_points=3,
+        same_place_thres=same_place_thres,
     )
 
     save_dataframe(

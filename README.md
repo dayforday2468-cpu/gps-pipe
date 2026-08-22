@@ -12,7 +12,6 @@ GPS 데이터는 측위 오차, 불규칙한 샘플링, 순간적인 위치 튐 
 - Map Matching을 통한 도로 네트워크 기반 위치 보정
 - Mobility Feature Extraction
 
-
 ## Pipeline Overview
 
 전체 데이터 처리 과정은 다음과 같습니다.
@@ -41,7 +40,6 @@ Google Timeline JSON에서 필요한 위치 데이터를 추출한 뒤 내부에
 
 이후 Map Matching을 통해 이동 경로를 실제 도로 네트워크에 대응시키고, 최종적으로 이동 거리, 체류 특성 등 후속 분석에 사용할 Mobility Feature를 추출합니다.
 
-
 ## Tech Stack
 
 ### Core
@@ -59,12 +57,12 @@ Google Timeline JSON에서 필요한 위치 데이터를 추출한 뒤 내부에
 
 - Git
 
-
 ## Project Structure
 
 ```text
 gps-pipe/
 ├── main.py
+│
 ├── modules/
 │   ├── __init__.py
 │   ├── haversine.py
@@ -86,9 +84,13 @@ gps-pipe/
 │
 ├── explorations/
 │   ├── 01_raw_vs_timeline.py
-│   ├── 02_distance_distribution.py
-│   ├── 03_jump_segmentation_visualization.py
-│   ├── 04_sudden_position_jump.py
+│   │
+│   ├── sudden_position_jump/
+│   │   ├── 01_jump_threshold.py
+│   │   ├── 02_jump_segmentation_visualization.py
+│   │   ├── 03_same_place_threshold.py
+│   │   └── 04_jump_removal_visualization.py
+│   │
 │   └── dbscan/
 │       ├── 01_spatial_k_dist_graph.py
 │       ├── 02_temporal_k_dist_graph.py
@@ -113,7 +115,6 @@ gps-pipe/
 
 세부 알고리즘을 직접 구현하기보다 각 모듈을 호출하여 데이터가 파이프라인의 각 단계를 순서대로 통과하도록 구성합니다.
 
-
 ### `modules/`
 
 GPS 데이터 처리에 사용되는 핵심 알고리즘을 포함합니다.
@@ -124,20 +125,17 @@ GPS 데이터 처리에 사용되는 핵심 알고리즘을 포함합니다.
 
 Haversine 거리 계산을 Polars Expression 형태로 제공하여 다른 알고리즘에서도 재사용할 수 있도록 구성합니다.
 
-
 #### `sudden_position_jump.py`
 
 GPS의 Sudden Position Jump를 제거합니다.
 
 연속된 위치 사이의 거리를 이용하여 trajectory를 segment로 나누고, 이전 및 다음 segment와의 공간적 관계를 이용해 짧은 비정상 위치 segment를 탐지합니다.
 
-
 #### `dbscan.py`
 
 공간과 시간을 함께 고려하는 ST-DBSCAN 알고리즘을 구현합니다.
 
 공간 거리와 시간 거리로 구성된 neighborhood를 이용하여 core point를 찾고, density-reachable한 point를 확장하여 cluster를 생성합니다.
-
 
 #### `parameter_tuning.py`
 
@@ -153,13 +151,11 @@ GPS의 Sudden Position Jump를 제거합니다.
 
 데이터 경로, batch size 등 프로젝트의 공통 설정값을 관리합니다.
 
-
 #### `dataload.py`
 
 Google Timeline JSON을 streaming 방식으로 읽어 필요한 데이터를 추출합니다.
 
 대용량 JSON을 한 번에 메모리에 올리지 않도록 `ijson`과 batch 처리를 사용합니다.
-
 
 #### `datastore.py`
 
@@ -167,41 +163,33 @@ CSV 데이터의 저장과 로드를 담당합니다.
 
 외부 데이터와 내부 표준 데이터 사이의 경계에서 schema validation을 수행합니다.
 
-
 #### `datafilter.py`
 
 GPS 및 Timeline 데이터를 특정 시간 범위로 필터링합니다.
-
 
 #### `decorators.py`
 
 실행 시간 측정 등 여러 모듈에서 공통으로 사용할 decorator를 제공합니다.
 
-
 #### `logger.py`
 
 프로젝트 전반에서 사용하는 logger를 설정합니다.
-
 
 #### `pipeline.py`
 
 데이터 디렉터리 초기화, Google Timeline 데이터 추출 및 CSV 생성 등 공통적인 파이프라인 초기화 과정을 관리합니다.
 
-
 #### `schema.py`
 
 CSV로 저장하거나 불러오는 데이터의 schema를 정의합니다.
-
 
 #### `timeutils.py`
 
 KST와 UTC 변환 등 시간 처리에 필요한 공통 기능을 제공합니다.
 
-
 #### `visualization.py`
 
 GPS point, trajectory 및 clustering 결과를 시각화하기 위한 기능을 제공합니다.
-
 
 ### `explorations/`
 
@@ -209,46 +197,53 @@ GPS point, trajectory 및 clustering 결과를 시각화하기 위한 기능을 
 
 핵심 파이프라인 코드와 분리하여 알고리즘의 동작 과정과 파라미터 선택 과정을 확인할 수 있도록 구성합니다.
 
-
 #### `01_raw_vs_timeline.py`
 
 Google Timeline의 raw position과 semantic timeline 데이터를 비교합니다.
 
+### `explorations/sudden_position_jump/`
 
-#### `02_distance_distribution.py`
+Sudden Position Jump 제거 알고리즘의 파라미터 선택과 동작 과정을 단계별로 분석하기 위한 실험 코드를 포함합니다.
+
+#### `01_jump_threshold.py`
 
 연속된 GPS point 사이의 거리 분포를 분석합니다.
 
+1-distance graph의 knee를 탐지하여 trajectory를 segment로 분할하기 위한 `jump_thres`를 추정합니다.
 
-#### `03_jump_segmentation_visualization.py`
+#### `02_jump_segmentation_visualization.py`
 
-Sudden Position Jump 제거 과정에서 사용되는 trajectory segmentation을 시각화합니다.
+추정된 `jump_thres`를 기준으로 GPS trajectory를 segment로 분할합니다.
 
+각 segment의 평균 위치와 point 수를 계산하고, 이전 및 다음 segment와의 공간적 관계를 확인하며 segmentation 결과를 시각화합니다.
 
-#### `04_sudden_position_jump.py`
+#### `03_same_place_threshold.py`
 
-Sudden Position Jump 제거 전후의 GPS 데이터를 비교합니다.
+Sudden Position Jump 후보 segment의 이전 및 다음 segment 평균 위치 사이 거리인 `prev_next_distance`를 분석합니다.
 
+`MAX_JUMP_POINTS` 이하의 짧은 segment를 후보로 제한하고, `prev_next_distance` 분포의 하위 `JUMP_RATE` quantile을 이용하여 `same_place_thres`를 추정합니다.
+
+#### `04_jump_removal_visualization.py`
+
+튜닝된 `jump_thres`와 `same_place_thres`를 이용하여 Sudden Position Jump를 제거합니다.
+
+원본 GPS trajectory와 정제된 trajectory를 비교하고 제거된 위치를 시각화하여 결과를 확인합니다.
 
 ### `explorations/dbscan/`
 
 ST-DBSCAN의 파라미터 선택과 clustering 결과를 분석하기 위한 실험 코드를 포함합니다.
 
-
 #### `01_spatial_k_dist_graph.py`
 
 Spatial k-distance graph를 생성하고 knee를 탐지하여 Spatial Eps 후보를 분석합니다.
-
 
 #### `02_temporal_k_dist_graph.py`
 
 Temporal k-distance graph를 생성하고 knee를 탐지하여 Temporal Eps 후보를 분석합니다.
 
-
 #### `03_st_dbscan.py`
 
 선정한 Spatial Eps, Temporal Eps, MinPts를 이용하여 ST-DBSCAN을 실행하고 clustering 결과를 시각화합니다.
-
 
 ### `data/`
 
@@ -270,7 +265,6 @@ data/
 
 `processed/`에는 시간 필터링, 전처리, clustering 등 실제 분석 파이프라인을 통과한 결과 데이터가 저장됩니다.
 
-
 ## Getting Started
 
 ### 1. Repository 준비
@@ -280,7 +274,6 @@ data/
 ```bash
 cd gps-pipe
 ```
-
 
 ### 2. Python 가상환경 생성
 
@@ -304,7 +297,6 @@ Windows:
 .venv\Scripts\activate
 ```
 
-
 ### 3. Dependencies 설치
 
 ```bash
@@ -317,7 +309,6 @@ python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
-
 ### 4. Google Timeline 데이터 준비
 
 Google Timeline에서 내보낸 JSON 파일을 다음 위치에 배치합니다.
@@ -327,7 +318,6 @@ data/
 └── timeline.json
 ```
 
-
 ### 5. Pipeline 실행
 
 ```bash
@@ -335,7 +325,6 @@ python main.py
 ```
 
 파이프라인을 실행하면 Google Timeline JSON에서 필요한 데이터를 추출하고 표준화된 CSV 데이터를 생성한 뒤 전처리 및 후속 분석 단계를 수행합니다.
-
 
 ### 6. Exploration 실행
 
@@ -353,7 +342,6 @@ ST-DBSCAN 결과를 확인하려면 다음과 같이 실행합니다.
 python explorations/dbscan/03_st_dbscan.py
 ```
 
-
 ## Google Timeline 데이터 준비
 
 이 프로젝트는 Google Maps 타임라인 데이터를 입력으로 사용합니다.
@@ -361,7 +349,6 @@ python explorations/dbscan/03_st_dbscan.py
 Google 공식 안내 문서는 아래 링크에서 확인할 수 있습니다.
 
 - [Google Maps 타임라인 관리 및 데이터 내보내기 공식 문서](https://support.google.com/maps/answer/6258979?hl=ko&co=GENIE.Platform%3DAndroid)
-
 
 ### 먼저 알아두기
 
@@ -380,7 +367,6 @@ Google Maps의 타임라인 데이터 저장 방식은 이전과 달라졌습니
 > `타임라인 데이터 내보내기`는 Google Maps 앱의 설정 메뉴가 아니라 Android의  
 > **설정 앱 → 위치 → 위치 서비스 → 타임라인**에 있습니다.
 
-
 ### 타임라인 데이터 내보내기
 
 1. Android 휴대전화 또는 태블릿에서 **설정 앱**을 엽니다.
@@ -396,7 +382,6 @@ Google Maps의 타임라인 데이터 저장 방식은 이전과 달라졌습니
 **5번에서 직접 선택한 휴대전화의 저장 위치에 파일이 생성됩니다.**
 
 따라서 내보내기가 완료된 후 Android의 **파일 앱**을 열어 저장할 때 선택했던 폴더로 이동하면 내보낸 Timeline JSON 파일을 확인할 수 있습니다.
-
 
 ### 프로젝트에 데이터 배치
 

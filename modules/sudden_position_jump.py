@@ -1,6 +1,7 @@
 import polars as pl
 
 from modules.haversine import haversine_expr
+from modules.primitives.config import MAX_JUMP_POINTS
 from modules.primitives.decorators import measure_time
 
 
@@ -23,7 +24,6 @@ def remove_sudden_position_jumps(
     df: pl.DataFrame,
     jump_thres: float,
     same_place_thres: float,
-    max_jump_points: int,
 ) -> pl.DataFrame:
     _validate_input(df)
 
@@ -74,7 +74,7 @@ def remove_sudden_position_jumps(
 
     jump_segments = (
         segments.filter(
-            (pl.col("point_count") <= max_jump_points)
+            (pl.col("point_count") <= MAX_JUMP_POINTS)
             & (pl.col("prev_next_distance") <= same_place_thres)
         )
         .get_column("segment_id")

@@ -82,13 +82,14 @@ if __name__ == "__main__":
 
     print("\n=== Distance Between Previous and Next Segment Means ===")
 
-    print(
-        segment_stats.filter(pl.col("prev_next_distance").is_not_null()).select(
-            "segment_id",
-            "point_count",
-            pl.col("prev_next_distance").round(2),
+    with pl.Config(tbl_rows=-1):
+        print(
+            segment_stats.filter(pl.col("prev_next_distance").is_not_null()).select(
+                "segment_id",
+                "point_count",
+                pl.col("prev_next_distance").round(2),
+            )
         )
-    )
 
     visualizer = GPSVisualizer(
         title=f"Sudden Position Jump Exploration - {time_range}",
