@@ -25,7 +25,7 @@ if __name__ == "__main__":
     )
 
     min_pts = math.ceil(math.log(len(positions)))
-    k = min_pts
+    k = min_pts - 1
 
     spatial_k_distances = calculate_spatial_k_distances(
         positions,

@@ -2,7 +2,8 @@ from datetime import datetime
 
 import polars as pl
 
-from modules.haversine import haversine_distance
+from modules.haversine import haversine_distance, haversine_expr
+from modules.parameter_tuning import find_knee
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
@@ -20,9 +21,18 @@ if __name__ == "__main__":
         end,
     )
 
+    # 1-distance graph를 이용해 jump threshold 추정
     raw_with_distance = haversine_distance(raw_filtered)
 
-    jump_thres = 300
+    distances = (
+        raw_with_distance.get_column("distance_to_next")
+        .drop_nulls()
+        .sort(descending=True)
+    )
+
+    jump_thres = find_knee(distances)
+
+    print(f"Jump Threshold: {jump_thres:.2f} m")
 
     # jump threshold를 기준으로 segment 분할
     segmented = raw_with_distance.with_columns(
@@ -36,48 +46,49 @@ if __name__ == "__main__":
         ).alias("segment_id")
     )
 
-    # segment별 평균 위치 계산
-    segment_means = (
+    # segment별 평균 위치, point 수, head/tail 계산
+    segment_stats = (
         segmented.group_by("segment_id", maintain_order=True)
         .agg(
             pl.col("latitude").mean().alias("latitude"),
             pl.col("longitude").mean().alias("longitude"),
             pl.len().alias("point_count"),
+            pl.first("latitude").alias("head_latitude"),
+            pl.first("longitude").alias("head_longitude"),
+            pl.first("timestamp").alias("head_timestamp"),
+            pl.last("latitude").alias("tail_latitude"),
+            pl.last("longitude").alias("tail_longitude"),
+            pl.last("timestamp").alias("tail_timestamp"),
         )
         .sort("segment_id")
+        .with_columns(
+            pl.col("latitude").shift(1).alias("prev_latitude"),
+            pl.col("longitude").shift(1).alias("prev_longitude"),
+            pl.col("latitude").shift(-1).alias("next_latitude"),
+            pl.col("longitude").shift(-1).alias("next_longitude"),
+            pl.col("head_latitude").shift(-1).alias("next_head_latitude"),
+            pl.col("head_longitude").shift(-1).alias("next_head_longitude"),
+            pl.col("head_timestamp").shift(-1).alias("next_head_timestamp"),
+        )
+        .with_columns(
+            haversine_expr(
+                pl.col("prev_latitude"),
+                pl.col("prev_longitude"),
+                pl.col("next_latitude"),
+                pl.col("next_longitude"),
+            ).alias("prev_next_distance")
+        )
     )
-
-    segment_ids = segmented["segment_id"].unique(maintain_order=True).to_list()
 
     print("\n=== Distance Between Previous and Next Segment Means ===")
 
-    for i in range(1, len(segment_ids) - 1):
-        prev_id = segment_ids[i - 1]
-        current_id = segment_ids[i]
-        next_id = segment_ids[i + 1]
-
-        prev_mean = segment_means.filter(pl.col("segment_id") == prev_id)
-        next_mean = segment_means.filter(pl.col("segment_id") == next_id)
-
-        mean_pair = pl.concat(
-            [
-                prev_mean.select("latitude", "longitude"),
-                next_mean.select("latitude", "longitude"),
-            ]
+    print(
+        segment_stats.filter(pl.col("prev_next_distance").is_not_null()).select(
+            "segment_id",
+            "point_count",
+            pl.col("prev_next_distance").round(2),
         )
-
-        distance = haversine_distance(mean_pair)["distance_to_next"][0]
-
-        current_point_count = segment_means.filter(pl.col("segment_id") == current_id)[
-            "point_count"
-        ][0]
-
-        print(
-            f"segment {current_id}: "
-            f"prev={prev_id}, next={next_id}, "
-            f"point_count={current_point_count}, "
-            f"prev-next distance={distance:.2f} m"
-        )
+    )
 
     visualizer = GPSVisualizer(
         title=f"Sudden Position Jump Exploration - {time_range}",
@@ -98,9 +109,15 @@ if __name__ == "__main__":
     ]
 
     # segment 평균 위치
-    for i, segment_id in enumerate(segment_ids):
+    for i, row in enumerate(segment_stats.iter_rows(named=True)):
         color = colors[i % len(colors)]
-        mean_df = segment_means.filter(pl.col("segment_id") == segment_id)
+
+        mean_df = pl.DataFrame(
+            {
+                "latitude": [row["latitude"]],
+                "longitude": [row["longitude"]],
+            }
+        )
 
         visualizer.add(
             mean_df,
@@ -111,13 +128,16 @@ if __name__ == "__main__":
             alpha=1.0,
         )
 
-    # segment와 segment 사이 연결선
+    # segment trajectory
+    segment_ids = segment_stats.get_column("segment_id").to_list()
+
     for i, segment_id in enumerate(segment_ids):
         color = colors[i % len(colors)]
+
         segment_df = segmented.filter(pl.col("segment_id") == segment_id)
 
         visualizer.add(
-            segment_df.select("latitude", "longitude", "timestamp"),
+            segment_df,
             label=f"Segment {segment_id}",
             point_size=14,
             point_color=color,
@@ -128,40 +148,45 @@ if __name__ == "__main__":
             alpha=0.75,
         )
 
-        if i < len(segment_ids) - 1:
-            next_segment_id = segment_ids[i + 1]
-            next_segment_df = segmented.filter(pl.col("segment_id") == next_segment_id)
+    # segment 사이 connector
+    connector_stats = segment_stats.filter(pl.col("next_head_latitude").is_not_null())
 
-            connector = pl.concat(
-                [
-                    segment_df.tail(1).select(
-                        "latitude",
-                        "longitude",
-                        "timestamp",
-                    ),
-                    next_segment_df.head(1).select(
-                        "latitude",
-                        "longitude",
-                        "timestamp",
-                    ),
-                ]
-            )
+    for i, row in enumerate(connector_stats.iter_rows(named=True)):
+        color = colors[i % len(colors)]
 
-            visualizer.add(
-                connector,
-                label=None,
-                point_size=0,
-                point_color=color,
-                show_line=True,
-                line_color=color,
-                line_style="--",
-                line_width=1.2,
-                alpha=0.8,
-            )
+        connector = pl.DataFrame(
+            {
+                "latitude": [
+                    row["tail_latitude"],
+                    row["next_head_latitude"],
+                ],
+                "longitude": [
+                    row["tail_longitude"],
+                    row["next_head_longitude"],
+                ],
+                "timestamp": [
+                    row["tail_timestamp"],
+                    row["next_head_timestamp"],
+                ],
+            }
+        )
+
+        visualizer.add(
+            connector,
+            label=None,
+            point_size=0,
+            point_color=color,
+            show_line=True,
+            line_color=color,
+            line_style="--",
+            line_width=1.2,
+            alpha=0.8,
+        )
 
     # visualizer.animate(
     #     interval=100,
     #     repeat=False,
     #     mode="time",
     # )
+
     visualizer.show()

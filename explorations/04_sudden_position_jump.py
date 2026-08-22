@@ -24,8 +24,7 @@ if __name__ == "__main__":
     positions_with_distance = haversine_distance(raw_filtered)
 
     distances = (
-        positions_with_distance
-        .get_column("distance_to_next")
+        positions_with_distance.get_column("distance_to_next")
         .drop_nulls()
         .sort(descending=True)
     )
