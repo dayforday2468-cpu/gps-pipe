@@ -1,5 +1,12 @@
+# Project data
 data/
+
+# Python virtual environment
 .venv/
 
+# Python cache files
 __pycache__/
 *.py[cod]
+
+# OSMnx HTTP cache
+cache/

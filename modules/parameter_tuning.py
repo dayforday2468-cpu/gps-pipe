@@ -3,7 +3,7 @@ from collections.abc import Callable
 import polars as pl
 
 from modules.haversine import haversine_expr, haversine_distance
-from modules.primitives.config import JUMP_RATE, MAX_JUMP_POINTS
+from modules.primitives.config import JUMP_RATE
 
 DistanceExpr = Callable[[dict], pl.Expr]
 
