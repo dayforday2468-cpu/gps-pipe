@@ -3,7 +3,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 
 from modules.haversine import haversine_distance
-from modules.parameter_tuning import find_knee
+from modules.parameter_tuning import estimate_jump_threshold
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 
@@ -20,15 +20,14 @@ if __name__ == "__main__":
         end,
     )
 
-    raw_with_distance = haversine_distance(raw_filtered)
-
     distances = (
-        raw_with_distance.get_column("distance_to_next")
+        haversine_distance(raw_filtered)
+        .get_column("distance_to_next")
         .drop_nulls()
         .sort(descending=True)
     )
 
-    jump_thres = find_knee(distances)
+    jump_thres = estimate_jump_threshold(raw_filtered)
 
     print("=== Distance Summary ===")
     print(distances.describe())

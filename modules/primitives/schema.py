@@ -10,6 +10,30 @@ class RawPositionSchema(BaseModel):
     timestamp: datetime
 
 
+class PositionSegmentSchema(BaseModel):
+    position_id: int = Field(ge=0)
+    segment_id: int = Field(ge=0)
+
+
+class SegmentSchema(BaseModel):
+    segment_id: int = Field(ge=0)
+
+    mean_latitude: float = Field(ge=-90, le=90)
+    mean_longitude: float = Field(ge=-180, le=180)
+
+    head_position_id: int = Field(ge=0)
+    tail_position_id: int = Field(ge=0)
+
+    point_count: int = Field(gt=0)
+
+    prev_next_distance: float | None = Field(default=None, ge=0)
+
+
+class PositionClusterSchema(BaseModel):
+    position_id: int = Field(ge=0)
+    cluster_id: int = Field(ge=0)
+
+
 class VisitSchema(BaseModel):
     start_time: datetime
     end_time: datetime
@@ -38,7 +62,3 @@ class ActivitySchema(BaseModel):
 
     probability: float = Field(ge=0, le=1)
     activity_probability: float = Field(ge=0, le=1)
-
-
-class ClusteredPositionSchema(RawPositionSchema):
-    cluster_id: int = Field(ge=0)

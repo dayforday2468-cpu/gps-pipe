@@ -7,6 +7,7 @@ from modules.parameter_tuning import (
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
+from modules.segmentation import segment_positions
 from modules.sudden_position_jump import remove_sudden_position_jumps
 
 if __name__ == "__main__":
@@ -25,9 +26,13 @@ if __name__ == "__main__":
 
     jump_thres = estimate_jump_threshold(raw_filtered)
 
-    same_place_thres = estimate_same_place_threshold(
+    position_segments, segments = segment_positions(
         raw_filtered,
         jump_thres=jump_thres,
+    )
+
+    same_place_thres = estimate_same_place_threshold(
+        segments,
     )
 
     print(f"Jump Threshold: {jump_thres:.2f} m")
@@ -36,14 +41,15 @@ if __name__ == "__main__":
     # sudden position jump 제거
     cleaned_positions = remove_sudden_position_jumps(
         raw_filtered,
-        jump_thres=jump_thres,
+        position_segments,
+        segments,
         same_place_thres=same_place_thres,
     )
 
     # 제거된 point 추출
     removed_positions = raw_filtered.join(
-        cleaned_positions.select("timestamp"),
-        on="timestamp",
+        cleaned_positions.select("position_id"),
+        on="position_id",
         how="anti",
     )
 
@@ -89,4 +95,3 @@ if __name__ == "__main__":
     )
 
     visualizer.show()
-    

@@ -1,5 +1,5 @@
-from datetime import datetime
 import math
+from datetime import datetime
 
 from modules.dbscan import st_dbscan
 from modules.parameter_tuning import (
@@ -13,7 +13,13 @@ from modules.primitives.config import PROCESSED_DIR
 from modules.primitives.datafilter import filter_points
 from modules.primitives.datastore import save_dataframe
 from modules.primitives.pipeline import initialize_pipeline
-from modules.primitives.schema import ClusteredPositionSchema, RawPositionSchema
+from modules.primitives.schema import (
+    PositionClusterSchema,
+    PositionSegmentSchema,
+    RawPositionSchema,
+    SegmentSchema,
+)
+from modules.segmentation import segment_positions
 from modules.sudden_position_jump import remove_sudden_position_jumps
 
 if __name__ == "__main__":
@@ -32,15 +38,33 @@ if __name__ == "__main__":
     # Sudden Position Jump 파라미터를 추정한다.
     jump_thres = estimate_jump_threshold(raw_positions)
 
-    same_place_thres = estimate_same_place_threshold(
+    # GPS 데이터를 이동 단위의 segment로 분할한다.
+    position_segments, segments = segment_positions(
         raw_positions,
         jump_thres=jump_thres,
+    )
+
+    save_dataframe(
+        position_segments.select(list(PositionSegmentSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/position_segments.csv",
+        PositionSegmentSchema,
+    )
+
+    save_dataframe(
+        segments.select(list(SegmentSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/segments.csv",
+        SegmentSchema,
+    )
+
+    same_place_thres = estimate_same_place_threshold(
+        segments,
     )
 
     # Sudden Position Jump를 제거하여 GPS 데이터를 정제한다.
     cleaned_data = remove_sudden_position_jumps(
         raw_positions,
-        jump_thres=jump_thres,
+        position_segments,
+        segments,
         same_place_thres=same_place_thres,
     )
 
@@ -74,7 +98,7 @@ if __name__ == "__main__":
     )
 
     save_dataframe(
-        clustered_data.select(list(ClusteredPositionSchema.model_fields.keys())),
-        f"{PROCESSED_DIR}/clustered_positions.csv",
-        ClusteredPositionSchema,
+        clustered_data.select(list(PositionClusterSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/position_clusters.csv",
+        PositionClusterSchema,
     )

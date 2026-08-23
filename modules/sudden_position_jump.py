@@ -1,89 +1,85 @@
 import polars as pl
 
-from modules.haversine import haversine_expr
 from modules.primitives.config import MAX_JUMP_POINTS
 from modules.primitives.decorators import measure_time
 
 
-def _validate_input(df: pl.DataFrame) -> None:
-    required_columns = {"latitude", "longitude"}
-    missing_columns = required_columns - set(df.columns)
+def _validate_input(
+    df: pl.DataFrame,
+    position_segments: pl.DataFrame,
+    segments: pl.DataFrame,
+) -> None:
+    required_position_columns = {
+        "position_id",
+        "latitude",
+        "longitude",
+        "timestamp",
+    }
+    missing_position_columns = required_position_columns - set(df.columns)
 
-    if missing_columns:
-        raise ValueError(f"required columns are missing: {missing_columns}")
+    if missing_position_columns:
+        raise ValueError(
+            f"required position columns are missing: {missing_position_columns}"
+        )
 
-    if not df["latitude"].is_between(-90, 90).all():
-        raise ValueError("latitude must be between -90 and 90")
+    required_position_segment_columns = {
+        "position_id",
+        "segment_id",
+    }
+    missing_position_segment_columns = required_position_segment_columns - set(
+        position_segments.columns
+    )
 
-    if not df["longitude"].is_between(-180, 180).all():
-        raise ValueError("longitude must be between -180 and 180")
+    if missing_position_segment_columns:
+        raise ValueError(
+            "required position segment columns are missing: "
+            f"{missing_position_segment_columns}"
+        )
+
+    required_segment_columns = {
+        "segment_id",
+        "point_count",
+        "prev_next_distance",
+    }
+    missing_segment_columns = required_segment_columns - set(segments.columns)
+
+    if missing_segment_columns:
+        raise ValueError(
+            f"required segment columns are missing: {missing_segment_columns}"
+        )
 
 
 @measure_time
 def remove_sudden_position_jumps(
     df: pl.DataFrame,
-    jump_thres: float,
+    position_segments: pl.DataFrame,
+    segments: pl.DataFrame,
     same_place_thres: float,
 ) -> pl.DataFrame:
-    _validate_input(df)
+    _validate_input(
+        df,
+        position_segments,
+        segments,
+    )
 
     if df.is_empty():
         return df
 
-    segmented = df.with_columns(
-        haversine_expr(
-            pl.col("latitude"),
-            pl.col("longitude"),
-            pl.col("latitude").shift(-1),
-            pl.col("longitude").shift(-1),
-        ).alias("_distance_to_next")
-    ).with_columns(
-        (
-            pl.col("_distance_to_next")
-            .shift(1)
-            .fill_null(0)
-            .gt(jump_thres)
-            .cast(pl.Int64)
-            .cum_sum()
-        ).alias("segment_id")
+    jump_segments = segments.filter(
+        (pl.col("point_count") <= MAX_JUMP_POINTS)
+        & (pl.col("prev_next_distance") <= same_place_thres)
+    ).select("segment_id")
+
+    jump_positions = position_segments.join(
+        jump_segments,
+        on="segment_id",
+        how="semi",
     )
 
-    segments = (
-        segmented.group_by("segment_id", maintain_order=True)
-        .agg(
-            pl.col("latitude").mean().alias("mean_latitude"),
-            pl.col("longitude").mean().alias("mean_longitude"),
-            pl.len().alias("point_count"),
-        )
-        .sort("segment_id")
-        .with_columns(
-            pl.col("mean_latitude").shift(1).alias("prev_latitude"),
-            pl.col("mean_longitude").shift(1).alias("prev_longitude"),
-            pl.col("mean_latitude").shift(-1).alias("next_latitude"),
-            pl.col("mean_longitude").shift(-1).alias("next_longitude"),
-        )
-        .with_columns(
-            haversine_expr(
-                pl.col("prev_latitude"),
-                pl.col("prev_longitude"),
-                pl.col("next_latitude"),
-                pl.col("next_longitude"),
-            ).alias("prev_next_distance")
-        )
+    cleaned = df.join(
+        jump_positions.select("position_id"),
+        on="position_id",
+        how="anti",
     )
 
-    jump_segments = (
-        segments.filter(
-            (pl.col("point_count") <= MAX_JUMP_POINTS)
-            & (pl.col("prev_next_distance") <= same_place_thres)
-        )
-        .get_column("segment_id")
-        .to_list()
-    )
-
-    cleaned = segmented.filter(~pl.col("segment_id").is_in(jump_segments))
-
-    return cleaned.drop(
-        "_distance_to_next",
-        "segment_id",
-    )
+    return cleaned
