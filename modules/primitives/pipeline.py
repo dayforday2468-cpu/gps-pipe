@@ -17,7 +17,6 @@ from modules.primitives.logger import get_logger
 from modules.primitives.schema import (
     ActivitySchema,
     RawPositionSchema,
-    TimelinePathSchema,
     VisitSchema,
 )
 
@@ -44,19 +43,31 @@ def init_data_directory() -> None:
 class DataBatches:
     @property
     def raw_positions(self) -> Iterator[pl.DataFrame]:
-        return load_csv_batches(f"{DATA_DIR}/raw_positions.csv", RawPositionSchema)
+        return load_csv_batches(
+            f"{DATA_DIR}/raw_positions.csv",
+            RawPositionSchema,
+        )
 
     @property
     def timeline_paths(self) -> Iterator[pl.DataFrame]:
-        return load_csv_batches(f"{DATA_DIR}/timeline_paths.csv", TimelinePathSchema)
+        return load_csv_batches(
+            f"{DATA_DIR}/timeline_paths.csv",
+            RawPositionSchema,
+        )
 
     @property
     def visits(self) -> Iterator[pl.DataFrame]:
-        return load_csv_batches(f"{DATA_DIR}/visits.csv", VisitSchema)
+        return load_csv_batches(
+            f"{DATA_DIR}/visits.csv",
+            VisitSchema,
+        )
 
     @property
     def activities(self) -> Iterator[pl.DataFrame]:
-        return load_csv_batches(f"{DATA_DIR}/activities.csv", ActivitySchema)
+        return load_csv_batches(
+            f"{DATA_DIR}/activities.csv",
+            ActivitySchema,
+        )
 
 
 def extract_and_save() -> None:
@@ -69,7 +80,7 @@ def extract_and_save() -> None:
     save_batches(
         load_timeline_paths_batches(SOURCE_PATH),
         f"{DATA_DIR}/timeline_paths.csv",
-        TimelinePathSchema,
+        RawPositionSchema,
     )
 
     save_batches(

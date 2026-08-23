@@ -2,8 +2,8 @@ import ijson
 import polars as pl
 from collections.abc import Iterator
 
-from modules.primitives.decorators import measure_generator_time
 from modules.primitives.config import BATCH_SIZE
+from modules.primitives.decorators import measure_generator_time
 
 
 def _extract_raw_segments(path: str, key: str):
@@ -50,11 +50,12 @@ def load_raw_positions_batches(
     path: str,
     batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
-
     records = _extract_raw_segments(
         path,
         key="position",
     )
+
+    position_offset = 0
 
     for batch in _batch_records(records, batch_size):
         df = (
@@ -83,10 +84,21 @@ def load_raw_positions_batches(
             .select(
                 "latitude",
                 "longitude",
-                pl.col("accuracyMeters").alias("accuracy"),
+                "timestamp",
+            )
+            .with_row_index(
+                "position_id",
+                offset=position_offset,
+            )
+            .select(
+                "position_id",
+                "latitude",
+                "longitude",
                 "timestamp",
             )
         )
+
+        position_offset += df.height
 
         yield df
 
@@ -96,11 +108,12 @@ def load_timeline_paths_batches(
     path: str,
     batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
-
     records = _extract_semantic_segments(
         path,
         key="timelinePath",
     )
+
+    position_offset = 0
 
     for batch in _batch_records(records, batch_size):
         df = (
@@ -136,7 +149,19 @@ def load_timeline_paths_batches(
                 "longitude",
                 "timestamp",
             )
+            .with_row_index(
+                "position_id",
+                offset=position_offset,
+            )
+            .select(
+                "position_id",
+                "latitude",
+                "longitude",
+                "timestamp",
+            )
         )
+
+        position_offset += df.height
 
         yield df
 
@@ -146,7 +171,6 @@ def load_visits_batches(
     path: str,
     batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
-
     records = _extract_semantic_segments(
         path,
         key="visit",
@@ -213,7 +237,6 @@ def load_activities_batches(
     path: str,
     batch_size: int = BATCH_SIZE,
 ) -> Iterator[pl.DataFrame]:
-
     records = _extract_semantic_segments(
         path,
         key="activity",
