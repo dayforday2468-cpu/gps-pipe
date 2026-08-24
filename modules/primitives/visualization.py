@@ -93,15 +93,34 @@ class GPSVisualizer:
             edge_alpha=0.5,
         )
 
+    def _get_coordinate_columns(
+        self,
+        data: pl.DataFrame,
+    ) -> tuple[str, str]:
+        if {"x", "y"}.issubset(data.columns):
+            return "x", "y"
+
+        return "longitude", "latitude"
+
+    def _is_projected(self) -> bool:
+        return any({"x", "y"}.issubset(layer["data"].columns) for layer in self._layers)
+
     def _setup_axes(self, fig, ax) -> None:
         if self.title:
             ax.set_title(self.title)
 
-        ax.set_xlabel("Longitude")
-        ax.set_ylabel("Latitude")
+        if self._is_projected():
+            ax.set_xlabel("X")
+            ax.set_ylabel("Y")
 
-        ax.xaxis.set_major_formatter(FormatStrFormatter("%.4f"))
-        ax.yaxis.set_major_formatter(FormatStrFormatter("%.4f"))
+            ax.xaxis.set_major_formatter(FormatStrFormatter("%.0f"))
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%.0f"))
+        else:
+            ax.set_xlabel("Longitude")
+            ax.set_ylabel("Latitude")
+
+            ax.xaxis.set_major_formatter(FormatStrFormatter("%.4f"))
+            ax.yaxis.set_major_formatter(FormatStrFormatter("%.4f"))
 
         def update_ticks(event=None):
             bbox = ax.get_window_extent()
@@ -127,12 +146,14 @@ class GPSVisualizer:
         for layer in self._layers:
             data = layer["data"]
 
-            longitude = data["longitude"]
-            latitude = data["latitude"]
+            x_column, y_column = self._get_coordinate_columns(data)
+
+            x = data[x_column]
+            y = data[y_column]
 
             ax.scatter(
-                longitude,
-                latitude,
+                x,
+                y,
                 s=layer["point_size"],
                 c=layer["point_color"],
                 label=layer["label"],
@@ -142,8 +163,8 @@ class GPSVisualizer:
 
             if layer["show_line"]:
                 ax.plot(
-                    longitude,
-                    latitude,
+                    x,
+                    y,
                     color=layer["line_color"],
                     linestyle=layer["line_style"],
                     linewidth=layer["line_width"],
@@ -172,18 +193,20 @@ class GPSVisualizer:
         self._draw_road_network(ax)
 
         if self._road_network is None:
-            all_longitudes = []
-            all_latitudes = []
+            all_x = []
+            all_y = []
 
             for layer in self._layers:
                 data = layer["data"]
 
-                all_longitudes.extend(data["longitude"].to_list())
-                all_latitudes.extend(data["latitude"].to_list())
+                x_column, y_column = self._get_coordinate_columns(data)
 
-            if all_longitudes and all_latitudes:
-                ax.set_xlim(min(all_longitudes), max(all_longitudes))
-                ax.set_ylim(min(all_latitudes), max(all_latitudes))
+                all_x.extend(data[x_column].to_list())
+                all_y.extend(data[y_column].to_list())
+
+            if all_x and all_y:
+                ax.set_xlim(min(all_x), max(all_x))
+                ax.set_ylim(min(all_y), max(all_y))
 
         artists = []
 
@@ -253,12 +276,14 @@ class GPSVisualizer:
                     else:
                         visible = data.filter(pl.col("timestamp") <= frame)
 
-                longitude = visible["longitude"]
-                latitude = visible["latitude"]
+                x_column, y_column = self._get_coordinate_columns(visible)
+
+                x = visible[x_column]
+                y = visible[y_column]
 
                 coordinates = visible.select(
-                    "longitude",
-                    "latitude",
+                    x_column,
+                    y_column,
                 ).to_numpy()
 
                 artist["scatter"].set_offsets(coordinates)
@@ -266,8 +291,8 @@ class GPSVisualizer:
 
                 if artist["line"] is not None:
                     artist["line"].set_data(
-                        longitude.to_numpy(),
-                        latitude.to_numpy(),
+                        x.to_numpy(),
+                        y.to_numpy(),
                     )
                     updated_artists.append(artist["line"])
 
