@@ -4,8 +4,6 @@ import math
 import osmnx as ox
 import polars as pl
 
-from shapely.geometry import LineString
-
 from modules.dbscan import st_dbscan
 from modules.parameter_tuning import (
     calculate_spatial_k_distances,
@@ -78,30 +76,16 @@ if __name__ == "__main__":
 
     # 각 GPS point를 가장 가까운 수직 projection 가능한 도로에 투영한다.
     for position in projected_positions.iter_rows(named=True):
-
         best_candidate = None
 
         for u, v, key, edge in projected_road_network.edges(
             keys=True,
             data=True,
         ):
-            geometry = edge.get("geometry")
-
-            if geometry is None:
-                u_node = projected_road_network.nodes[u]
-                v_node = projected_road_network.nodes[v]
-
-                geometry = LineString(
-                    [
-                        (u_node["x"], u_node["y"]),
-                        (v_node["x"], v_node["y"]),
-                    ]
-                )
-
             projection = project_point_to_edge(
                 position["x"],
                 position["y"],
-                geometry,
+                edge["geometry"],
             )
 
             if projection is None:

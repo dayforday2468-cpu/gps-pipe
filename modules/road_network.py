@@ -2,14 +2,15 @@ import json
 import math
 from pathlib import Path
 
-import osmnx as ox
 import networkx as nx
+import osmnx as ox
 import polars as pl
+from shapely.geometry import LineString
 
 from modules.primitives.config import (
+    EARTH_RADIUS,
     ROAD_NETWORK_CACHE_MARGIN,
     ROAD_NETWORK_DIR,
-    EARTH_RADIUS,
 )
 from modules.primitives.decorators import measure_time
 
@@ -74,6 +75,24 @@ def contains_bounds(
     )
 
 
+def ensure_edge_geometries(
+    graph: nx.MultiDiGraph,
+) -> None:
+    for u, v, edge in graph.edges(data=True):
+        if edge.get("geometry") is not None:
+            continue
+
+        u_node = graph.nodes[u]
+        v_node = graph.nodes[v]
+
+        edge["geometry"] = LineString(
+            [
+                (u_node["x"], u_node["y"]),
+                (v_node["x"], v_node["y"]),
+            ]
+        )
+
+
 @measure_time
 def load_road_network(
     positions: pl.DataFrame,
@@ -123,6 +142,8 @@ def load_road_network(
         cache_bounds,
         network_type="drive",
     )
+
+    ensure_edge_geometries(graph)
 
     Path(ROAD_NETWORK_DIR).mkdir(
         parents=True,
