@@ -30,16 +30,18 @@ def project_point_to_edge(
     x: float,
     y: float,
     geometry: LineString,
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float] | None:
     point = Point(x, y)
 
     distance_along_edge = geometry.project(point)
-    projected_point = geometry.interpolate(distance_along_edge)
 
-    distance = point.distance(projected_point)
+    if not 0 < distance_along_edge < geometry.length:
+        return None
+
+    projected_point = geometry.interpolate(distance_along_edge)
 
     return (
         projected_point.x,
         projected_point.y,
-        distance,
+        point.distance(projected_point),
     )

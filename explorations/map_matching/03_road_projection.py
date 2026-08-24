@@ -4,7 +4,7 @@ import math
 import osmnx as ox
 import polars as pl
 
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString
 
 from modules.dbscan import st_dbscan
 from modules.parameter_tuning import (
@@ -78,10 +78,6 @@ if __name__ == "__main__":
 
     # 각 GPS point를 가장 가까운 수직 projection 가능한 도로에 투영한다.
     for position in projected_positions.iter_rows(named=True):
-        point = Point(
-            position["x"],
-            position["y"],
-        )
 
         best_candidate = None
 
@@ -102,17 +98,16 @@ if __name__ == "__main__":
                     ]
                 )
 
-            distance_along_edge = geometry.project(point)
-
-            # edge 내부로 수직 projection되지 않는 경우 제외
-            if not 0 < distance_along_edge < geometry.length:
-                continue
-
-            projected_x, projected_y, distance = project_point_to_edge(
+            projection = project_point_to_edge(
                 position["x"],
                 position["y"],
                 geometry,
             )
+
+            if projection is None:
+                continue
+
+            projected_x, projected_y, distance = projection
 
             if (
                 best_candidate is None
