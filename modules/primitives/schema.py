@@ -34,6 +34,31 @@ class PositionClusterSchema(BaseModel):
     cluster_id: int = Field(ge=0)
 
 
+class ProjectedPositionSchema(BaseModel):
+    position_id: int = Field(ge=0)
+    x: float
+    y: float
+
+
+class CandidatePositionSchema(BaseModel):
+    position_id: int = Field(ge=0)
+
+    edge_u: int
+    edge_v: int
+    edge_key: int = Field(ge=0)
+
+    x: float
+    y: float
+
+    distance: float = Field(ge=0)
+
+
+class MatchedPositionSchema(BaseModel):
+    position_id: int = Field(ge=0)
+    matched_latitude: float = Field(ge=-90, le=90)
+    matched_longitude: float = Field(ge=-180, le=180)
+
+
 class VisitSchema(BaseModel):
     start_time: datetime
     end_time: datetime

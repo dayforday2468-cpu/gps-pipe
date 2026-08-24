@@ -1,6 +1,8 @@
 import math
 from datetime import datetime
 
+import osmnx as ox
+
 from modules.dbscan import st_dbscan
 from modules.parameter_tuning import (
     calculate_spatial_k_distances,
@@ -9,16 +11,22 @@ from modules.parameter_tuning import (
     estimate_same_place_threshold,
     find_knee,
 )
-from modules.primitives.config import PROCESSED_DIR
+from modules.primitives.config import (
+    PROCESSED_DIR,
+    ROAD_NETWORK_VIEW_MARGIN,
+)
 from modules.primitives.datafilter import filter_points
 from modules.primitives.datastore import save_dataframe
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.schema import (
     PositionClusterSchema,
     PositionSegmentSchema,
+    ProjectedPositionSchema,
     RawPositionSchema,
     SegmentSchema,
 )
+from modules.projection import project_positions
+from modules.road_network import load_road_network
 from modules.segmentation import segment_positions
 from modules.sudden_position_jump import remove_sudden_position_jumps
 
@@ -26,8 +34,8 @@ if __name__ == "__main__":
     batches = initialize_pipeline()
 
     # 하루치 데이터 필터링
-    start = datetime(2026, 8, 11, 0, 0)
-    end = datetime(2026, 8, 12, 0, 0)
+    start = datetime(2026, 8, 1, 7, 0)
+    end = datetime(2026, 8, 2, 0, 0)
 
     raw_positions = filter_points(
         batches.raw_positions,
@@ -101,4 +109,24 @@ if __name__ == "__main__":
         clustered_data.select(list(PositionClusterSchema.model_fields.keys())),
         f"{PROCESSED_DIR}/position_clusters.csv",
         PositionClusterSchema,
+    )
+
+    # Map Matching을 위한 도로망을 불러오고 평면 좌표계로 변환한다.
+    road_network = load_road_network(
+        cleaned_data,
+        margin=ROAD_NETWORK_VIEW_MARGIN,
+    )
+
+    projected_road_network = ox.project_graph(road_network)
+
+    # GPS 좌표를 도로망과 동일한 좌표계의 x, y 좌표로 변환한다.
+    projected_positions = project_positions(
+        cleaned_data,
+        projected_road_network.graph["crs"],
+    )
+
+    save_dataframe(
+        projected_positions.select(list(ProjectedPositionSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/projected_positions.csv",
+        ProjectedPositionSchema,
     )
