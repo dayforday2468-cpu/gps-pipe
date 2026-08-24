@@ -1,8 +1,7 @@
 import polars as pl
 
+from modules.primitives.config import EARTH_RADIUS
 from modules.primitives.decorators import measure_time
-
-EARTH_RADIUS_M = 6_371_000
 
 
 def _validate_input(df: pl.DataFrame) -> None:
@@ -41,7 +40,7 @@ def haversine_expr(
         (1 - a).sqrt(),
     )
 
-    return EARTH_RADIUS_M * c
+    return EARTH_RADIUS * c
 
 
 @measure_time

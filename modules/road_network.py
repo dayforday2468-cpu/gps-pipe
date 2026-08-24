@@ -8,6 +8,7 @@ import polars as pl
 from modules.primitives.config import (
     ROAD_NETWORK_CACHE_MARGIN,
     ROAD_NETWORK_DIR,
+    EARTH_RADIUS,
 )
 from modules.primitives.decorators import measure_time
 
@@ -43,8 +44,11 @@ def expand_bounds(
 
     center_latitude = (south + north) / 2
 
-    latitude_margin = margin / 111_320
-    longitude_margin = margin / (111_320 * math.cos(math.radians(center_latitude)))
+    angular_margin = margin / EARTH_RADIUS
+    latitude_margin = math.degrees(angular_margin)
+    longitude_margin = math.degrees(
+        angular_margin / math.cos(math.radians(center_latitude))
+    )
 
     return (
         west - longitude_margin,
