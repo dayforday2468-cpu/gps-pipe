@@ -1,5 +1,6 @@
 import polars as pl
 from pyproj import Transformer
+from shapely.geometry import LineString, Point
 
 
 def project_positions(
@@ -23,4 +24,22 @@ def project_positions(
             "x": x,
             "y": y,
         }
+    )
+
+def project_point_to_edge(
+    x: float,
+    y: float,
+    geometry: LineString,
+) -> tuple[float, float, float]:
+    point = Point(x, y)
+
+    distance_along_edge = geometry.project(point)
+    projected_point = geometry.interpolate(distance_along_edge)
+
+    distance = point.distance(projected_point)
+
+    return (
+        projected_point.x,
+        projected_point.y,
+        distance,
     )
