@@ -8,5 +8,8 @@ data/
 __pycache__/
 *.py[cod]
 
+# Python package metadata
+*.egg-info/
+
 # OSMnx HTTP cache
 cache/
