@@ -3,6 +3,7 @@ import math
 from pathlib import Path
 
 import osmnx as ox
+import networkx as nx
 import polars as pl
 
 from modules.primitives.config import (
@@ -77,7 +78,7 @@ def contains_bounds(
 def load_road_network(
     positions: pl.DataFrame,
     margin: float,
-):
+) -> nx.MultiDiGraph:
     if margin < 0:
         raise ValueError("margin must be greater than or equal to 0")
 

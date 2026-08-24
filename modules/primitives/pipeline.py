@@ -5,7 +5,7 @@ import shutil
 
 import polars as pl
 
-from modules.primitives.config import DATA_DIR, SOURCE_PATH
+from modules.primitives.config import DATA_DIR, SOURCE_PATH, ROAD_NETWORK_DIR
 from modules.primitives.dataload import (
     load_activities_batches,
     load_raw_positions_batches,
@@ -25,10 +25,14 @@ logger = get_logger(__name__)
 
 def init_data_directory() -> None:
     data_dir = Path(DATA_DIR)
-    source_path = Path(SOURCE_PATH).resolve()
+
+    preserved_paths = {
+        Path(SOURCE_PATH).resolve(),
+        Path(ROAD_NETWORK_DIR).resolve(),
+    }
 
     for path in data_dir.iterdir():
-        if path.resolve() == source_path:
+        if path.resolve() in preserved_paths:
             continue
 
         if path.is_dir():

@@ -1,6 +1,8 @@
 from collections.abc import Iterator
 
 import matplotlib.pyplot as plt
+import networkx as nx
+import osmnx as ox
 import polars as pl
 
 from matplotlib.animation import FuncAnimation
@@ -18,6 +20,7 @@ class GPSVisualizer:
         self.show_legend = show_legend
         self.tick_spacing = tick_spacing
         self._layers = []
+        self._road_network = None
 
     def add(
         self,
@@ -70,6 +73,26 @@ class GPSVisualizer:
                 alpha=alpha,
             )
 
+    def add_road_network(
+        self,
+        graph: nx.MultiDiGraph,
+    ) -> None:
+        self._road_network = graph
+
+    def _draw_road_network(self, ax) -> None:
+        if self._road_network is None:
+            return
+
+        ox.plot_graph(
+            self._road_network,
+            ax=ax,
+            show=False,
+            close=False,
+            node_size=0,
+            edge_linewidth=0.5,
+            edge_alpha=0.5,
+        )
+
     def _setup_axes(self, fig, ax) -> None:
         if self.title:
             ax.set_title(self.title)
@@ -99,6 +122,8 @@ class GPSVisualizer:
     def show(self) -> None:
         fig, ax = plt.subplots()
 
+        self._draw_road_network(ax)
+
         for layer in self._layers:
             data = layer["data"]
 
@@ -112,6 +137,7 @@ class GPSVisualizer:
                 c=layer["point_color"],
                 label=layer["label"],
                 alpha=layer["alpha"],
+                zorder=3,
             )
 
             if layer["show_line"]:
@@ -122,6 +148,7 @@ class GPSVisualizer:
                     linestyle=layer["line_style"],
                     linewidth=layer["line_width"],
                     alpha=layer["alpha"],
+                    zorder=2,
                 )
 
         self._setup_axes(fig, ax)
@@ -142,19 +169,21 @@ class GPSVisualizer:
 
         fig, ax = plt.subplots()
 
-        # 전체 데이터 기준으로 축 범위 고정
-        all_longitudes = []
-        all_latitudes = []
+        self._draw_road_network(ax)
 
-        for layer in self._layers:
-            data = layer["data"]
+        if self._road_network is None:
+            all_longitudes = []
+            all_latitudes = []
 
-            all_longitudes.extend(data["longitude"].to_list())
-            all_latitudes.extend(data["latitude"].to_list())
+            for layer in self._layers:
+                data = layer["data"]
 
-        if all_longitudes and all_latitudes:
-            ax.set_xlim(min(all_longitudes), max(all_longitudes))
-            ax.set_ylim(min(all_latitudes), max(all_latitudes))
+                all_longitudes.extend(data["longitude"].to_list())
+                all_latitudes.extend(data["latitude"].to_list())
+
+            if all_longitudes and all_latitudes:
+                ax.set_xlim(min(all_longitudes), max(all_longitudes))
+                ax.set_ylim(min(all_latitudes), max(all_latitudes))
 
         artists = []
 
@@ -166,6 +195,7 @@ class GPSVisualizer:
                 c=layer["point_color"],
                 label=layer["label"],
                 alpha=layer["alpha"],
+                zorder=3,
             )
 
             line = None
@@ -178,6 +208,7 @@ class GPSVisualizer:
                     linestyle=layer["line_style"],
                     linewidth=layer["line_width"],
                     alpha=layer["alpha"],
+                    zorder=2,
                 )
 
             artists.append(
@@ -217,7 +248,6 @@ class GPSVisualizer:
                     visible = data[:end]
 
                 else:
-                    # timestamp가 없는 layer는 처음부터 전부 표시
                     if "timestamp" not in data.columns:
                         visible = data
                     else:
