@@ -1,6 +1,7 @@
 import json
 import math
 from pathlib import Path
+from typing import NamedTuple
 
 import networkx as nx
 import osmnx as ox
@@ -18,9 +19,16 @@ GRAPH_PATH = Path(ROAD_NETWORK_DIR) / "road_network.graphml"
 METADATA_PATH = Path(ROAD_NETWORK_DIR) / "metadata.json"
 
 
+class Bounds(NamedTuple):
+    west: float
+    south: float
+    east: float
+    north: float
+
+
 def calculate_bounds(
     positions: pl.DataFrame,
-) -> tuple[float, float, float, float]:
+) -> Bounds:
     if positions.is_empty():
         raise ValueError("positions must not be empty")
 
@@ -30,21 +38,19 @@ def calculate_bounds(
     if missing_columns:
         raise ValueError(f"required columns are missing: {missing_columns}")
 
-    west = positions.get_column("longitude").min()
-    south = positions.get_column("latitude").min()
-    east = positions.get_column("longitude").max()
-    north = positions.get_column("latitude").max()
-
-    return west, south, east, north
+    return Bounds(
+        west=positions.get_column("longitude").min(),
+        south=positions.get_column("latitude").min(),
+        east=positions.get_column("longitude").max(),
+        north=positions.get_column("latitude").max(),
+    )
 
 
 def expand_bounds(
-    bounds: tuple[float, float, float, float],
+    bounds: Bounds,
     margin: float,
-) -> tuple[float, float, float, float]:
-    west, south, east, north = bounds
-
-    center_latitude = (south + north) / 2
+) -> Bounds:
+    center_latitude = (bounds.south + bounds.north) / 2
 
     angular_margin = margin / EARTH_RADIUS
     latitude_margin = math.degrees(angular_margin)
@@ -52,26 +58,23 @@ def expand_bounds(
         angular_margin / math.cos(math.radians(center_latitude))
     )
 
-    return (
-        west - longitude_margin,
-        south - latitude_margin,
-        east + longitude_margin,
-        north + latitude_margin,
+    return Bounds(
+        west=bounds.west - longitude_margin,
+        south=bounds.south - latitude_margin,
+        east=bounds.east + longitude_margin,
+        north=bounds.north + latitude_margin,
     )
 
 
 def contains_bounds(
-    outer: tuple[float, float, float, float],
-    inner: tuple[float, float, float, float],
+    outer: Bounds,
+    inner: Bounds,
 ) -> bool:
-    outer_west, outer_south, outer_east, outer_north = outer
-    inner_west, inner_south, inner_east, inner_north = inner
-
     return (
-        outer_west <= inner_west
-        and outer_south <= inner_south
-        and outer_east >= inner_east
-        and outer_north >= inner_north
+        outer.west <= inner.west
+        and outer.south <= inner.south
+        and outer.east >= inner.east
+        and outer.north >= inner.north
     )
 
 
@@ -114,11 +117,11 @@ def load_road_network(
     if GRAPH_PATH.exists() and METADATA_PATH.exists():
         metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
 
-        cached_bounds = (
-            metadata["west"],
-            metadata["south"],
-            metadata["east"],
-            metadata["north"],
+        cached_bounds = Bounds(
+            west=metadata["west"],
+            south=metadata["south"],
+            east=metadata["east"],
+            north=metadata["north"],
         )
 
         if contains_bounds(
@@ -155,13 +158,11 @@ def load_road_network(
         filepath=GRAPH_PATH,
     )
 
-    west, south, east, north = cache_bounds
-
     metadata = {
-        "west": west,
-        "south": south,
-        "east": east,
-        "north": north,
+        "west": cache_bounds.west,
+        "south": cache_bounds.south,
+        "east": cache_bounds.east,
+        "north": cache_bounds.north,
     }
 
     METADATA_PATH.write_text(
