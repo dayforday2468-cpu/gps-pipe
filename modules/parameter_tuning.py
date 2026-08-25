@@ -1,6 +1,9 @@
 from collections.abc import Callable
 
+import geopandas as gpd
 import polars as pl
+from shapely.geometry import Point
+
 
 from modules.haversine import haversine_expr, haversine_distance
 from modules.primitives.config import JUMP_RATE
@@ -126,3 +129,34 @@ def estimate_same_place_threshold(
     ).get_column("prev_next_distance")
 
     return same_place_distances.quantile(JUMP_RATE)
+
+
+def calculate_nearest_road_distances(
+    positions: pl.DataFrame,
+    edges: gpd.GeoDataFrame,
+    k: int = 1,
+) -> pl.Series:
+    if k < 1:
+        raise ValueError("k must be greater than or equal to 1")
+
+    if len(edges) < k:
+        raise ValueError("number of edges must be greater than or equal to k")
+
+    distances = []
+
+    for position in positions.iter_rows(named=True):
+        point = Point(
+            position["x"],
+            position["y"],
+        )
+
+        road_distances = edges.geometry.distance(point).sort_values()
+
+        k_distance = road_distances.iloc[k - 1]
+
+        distances.append(k_distance)
+
+    return pl.Series(
+        f"{k}_nearest_road_distance",
+        distances,
+    ).sort(descending=True)

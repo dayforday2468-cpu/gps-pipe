@@ -5,6 +5,7 @@ import osmnx as ox
 import polars as pl
 
 from modules.dbscan import st_dbscan
+from modules.map_matching import find_candidate_edges
 from modules.parameter_tuning import (
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
@@ -16,7 +17,6 @@ from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
 from modules.projection import project_point_to_edge, project_positions
 from modules.road_network import load_road_network
-
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -55,9 +55,7 @@ if __name__ == "__main__":
     )
 
     # cluster_id == 0인 이동 point만 선택한다.
-    moving_positions = clustered_positions.filter(
-        pl.col("cluster_id") == 0
-    )
+    moving_positions = clustered_positions.filter(pl.col("cluster_id") == 0)
 
     # 도로망과 GPS point를 동일한 평면 좌표계로 변환한다.
     road_network = load_road_network(
@@ -72,16 +70,28 @@ if __name__ == "__main__":
         projected_road_network.graph["crs"],
     )
 
+    edges = ox.graph_to_gdfs(
+        projected_road_network,
+        nodes=False,
+        edges=True,
+    )
+
+    search_radius = 100
+
     projected_candidates = []
 
-    # 각 GPS point를 가장 가까운 수직 projection 가능한 도로에 투영한다.
+    # 각 GPS point 주변의 후보 도로 중 가장 가까운 수직 projection을 선택한다.
     for position in projected_positions.iter_rows(named=True):
+        candidate_edges = find_candidate_edges(
+            position["x"],
+            position["y"],
+            edges,
+            search_radius=search_radius,
+        )
+
         best_candidate = None
 
-        for u, v, key, edge in projected_road_network.edges(
-            keys=True,
-            data=True,
-        ):
+        for (u, v, key), edge in candidate_edges.iterrows():
             projection = project_point_to_edge(
                 position["x"],
                 position["y"],
@@ -93,10 +103,7 @@ if __name__ == "__main__":
 
             projected_x, projected_y, distance = projection
 
-            if (
-                best_candidate is None
-                or distance < best_candidate["distance"]
-            ):
+            if best_candidate is None or distance < best_candidate["distance"]:
                 best_candidate = {
                     "position_id": position["position_id"],
                     "edge_u": u,
@@ -118,7 +125,7 @@ if __name__ == "__main__":
     print(candidate_positions.head())
 
     visualizer = GPSVisualizer(
-        title=f"Project GPS Points onto Nearest Road - {time_range}",
+        title=f"Project GPS Points onto Candidate Roads - {time_range}",
         show_legend=True,
     )
 

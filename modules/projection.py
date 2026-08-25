@@ -26,6 +26,7 @@ def project_positions(
         }
     )
 
+
 def project_point_to_edge(
     x: float,
     y: float,

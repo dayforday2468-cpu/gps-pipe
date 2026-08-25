@@ -1,0 +1,112 @@
+from datetime import datetime
+
+import math
+import matplotlib.pyplot as plt
+import osmnx as ox
+import polars as pl
+
+from modules.dbscan import st_dbscan
+from modules.parameter_tuning import (
+    calculate_nearest_road_distances,
+    calculate_spatial_k_distances,
+    calculate_temporal_k_distances,
+    find_knee,
+)
+from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
+from modules.primitives.datafilter import filter_points
+from modules.primitives.pipeline import initialize_pipeline
+from modules.projection import project_positions
+from modules.road_network import load_road_network
+
+if __name__ == "__main__":
+    batches = initialize_pipeline()
+
+    start = datetime(2026, 8, 1, 7, 0)
+    end = datetime(2026, 8, 2, 0, 0)
+    time_range = f"{start:%Y-%m-%d %H:%M} ~ {end:%Y-%m-%d %H:%M}"
+
+    raw_positions = filter_points(
+        batches.raw_positions,
+        start,
+        end,
+    )
+
+    # ST-DBSCAN을 실행한다.
+    min_pts = math.ceil(math.log(len(raw_positions)))
+    k = min_pts - 1
+
+    spatial_k_distances = calculate_spatial_k_distances(
+        raw_positions,
+        k=k,
+    )
+    temporal_k_distances = calculate_temporal_k_distances(
+        raw_positions,
+        k=k,
+    )
+
+    eps_space = find_knee(spatial_k_distances)
+    eps_time = find_knee(temporal_k_distances)
+
+    clustered_positions = st_dbscan(
+        raw_positions,
+        eps_space=eps_space,
+        eps_time=eps_time,
+        min_pts=min_pts,
+    )
+
+    # cluster_id == 0인 이동 point만 선택한다.
+    moving_positions = clustered_positions.filter(pl.col("cluster_id") == 0)
+
+    # 도로망과 GPS point를 동일한 평면 좌표계로 변환한다.
+    road_network = load_road_network(
+        moving_positions,
+        margin=ROAD_NETWORK_VIEW_MARGIN,
+    )
+
+    projected_road_network = ox.project_graph(road_network)
+
+    projected_positions = project_positions(
+        moving_positions,
+        projected_road_network.graph["crs"],
+    )
+
+    edges = ox.graph_to_gdfs(
+        projected_road_network,
+        nodes=False,
+        edges=True,
+    )
+
+    # 각 GPS point에서 k번째로 가까운 도로까지의 거리를 계산한다.
+    road_k = 3
+
+    nearest_road_distances = calculate_nearest_road_distances(
+        projected_positions,
+        edges,
+        k=road_k,
+    )
+
+    # 상위 95%의 GPS point가 road_k개의 후보 도로를 확보할 수 있는
+    # 거리를 search radius 후보로 사용한다.
+    search_radius = nearest_road_distances.quantile(0.95)
+
+    print(f"=== {road_k}-Nearest Road Distance ===")
+    print(nearest_road_distances.describe())
+    print(f"95% quantile: {search_radius:.2f} m")
+
+    plt.hist(
+        nearest_road_distances,
+        bins=50,
+    )
+
+    plt.axvline(
+        search_radius,
+        linestyle="--",
+        label=f"95% Quantile: {search_radius:.2f} m",
+    )
+
+    plt.xlabel(f"Distance to {road_k}-Nearest Road (m)")
+    plt.ylabel("Frequency")
+    plt.title(f"{road_k}-Nearest Road Distance Distribution - {time_range}")
+    plt.legend()
+
+    plt.show()
