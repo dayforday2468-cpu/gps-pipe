@@ -5,8 +5,9 @@ import osmnx as ox
 import polars as pl
 
 from modules.dbscan import st_dbscan
-from modules.map_matching import find_candidate_edges
+from modules.map_matching import generate_candidate_positions
 from modules.parameter_tuning import (
+    calculate_nearest_road_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
     find_knee,
@@ -15,7 +16,7 @@ from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
-from modules.projection import project_point_to_edge, project_positions
+from modules.projection import project_positions
 from modules.road_network import load_road_network
 
 if __name__ == "__main__":
@@ -63,7 +64,9 @@ if __name__ == "__main__":
         margin=ROAD_NETWORK_VIEW_MARGIN,
     )
 
-    projected_road_network = ox.project_graph(road_network)
+    projected_road_network = ox.project_graph(
+        road_network,
+    )
 
     projected_positions = project_positions(
         moving_positions,
@@ -76,60 +79,38 @@ if __name__ == "__main__":
         edges=True,
     )
 
-    search_radius = 100
+    # 후보 도로 탐색을 위한 search radius를 추정한다.
+    road_k = 3
 
-    projected_candidates = []
+    road_k_distances = calculate_nearest_road_distances(
+        projected_positions,
+        edges,
+        k=road_k,
+    )
 
-    # 각 GPS point 주변의 후보 도로 중 가장 가까운 수직 projection을 선택한다.
-    for position in projected_positions.iter_rows(named=True):
-        candidate_edges = find_candidate_edges(
-            position["x"],
-            position["y"],
-            edges,
-            search_radius=search_radius,
-        )
+    search_radius = road_k_distances.quantile(0.95)
 
-        best_candidate = None
-
-        for (u, v, key), edge in candidate_edges.iterrows():
-            projection = project_point_to_edge(
-                position["x"],
-                position["y"],
-                edge["geometry"],
-            )
-
-            if projection is None:
-                continue
-
-            projected_x, projected_y, distance = projection
-
-            if best_candidate is None or distance < best_candidate["distance"]:
-                best_candidate = {
-                    "position_id": position["position_id"],
-                    "edge_u": u,
-                    "edge_v": v,
-                    "edge_key": key,
-                    "x": projected_x,
-                    "y": projected_y,
-                    "distance": distance,
-                }
-
-        if best_candidate is not None:
-            projected_candidates.append(best_candidate)
-
-    candidate_positions = pl.DataFrame(projected_candidates)
+    # Search radius 내의 도로에 projection하여 후보 위치를 생성한다.
+    candidate_positions = generate_candidate_positions(
+        projected_positions,
+        edges,
+        search_radius=search_radius,
+    )
 
     print("=== Road Projection ===")
     print(f"Moving points: {projected_positions.height}")
-    print(f"Projected points: {candidate_positions.height}")
+    print(f"Candidate positions: {candidate_positions.height}")
+    print(f"Search radius: {search_radius:.2f} m")
     print(candidate_positions.head())
 
     visualizer = GPSVisualizer(
-        title=f"Project GPS Points onto Candidate Roads - {time_range}",
+        title=f"GPS Candidate Road Projections - {time_range}",
         show_legend=True,
     )
 
-    visualizer.add_road_network(projected_road_network)
+    visualizer.add_road_network(
+        projected_road_network,
+    )
 
     visualizer.add(
         projected_positions,
@@ -141,7 +122,7 @@ if __name__ == "__main__":
 
     visualizer.add(
         candidate_positions,
-        label="Projected",
+        label="Candidates",
         point_size=4,
         point_color="blue",
         alpha=0.8,

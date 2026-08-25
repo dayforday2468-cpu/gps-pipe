@@ -134,7 +134,7 @@ def estimate_same_place_threshold(
 def calculate_nearest_road_distances(
     positions: pl.DataFrame,
     edges: gpd.GeoDataFrame,
-    k: int = 1,
+    k: int,
 ) -> pl.Series:
     if k < 1:
         raise ValueError("k must be greater than or equal to 1")

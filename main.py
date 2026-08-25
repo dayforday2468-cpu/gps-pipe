@@ -2,9 +2,12 @@ import math
 from datetime import datetime
 
 import osmnx as ox
+import polars as pl
 
 from modules.dbscan import st_dbscan
+from modules.map_matching import generate_candidate_positions
 from modules.parameter_tuning import (
+    calculate_nearest_road_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
     estimate_jump_threshold,
@@ -19,6 +22,7 @@ from modules.primitives.datafilter import filter_points
 from modules.primitives.datastore import save_dataframe
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.schema import (
+    CandidatePositionSchema,
     PositionClusterSchema,
     PositionSegmentSchema,
     ProjectedPositionSchema,
@@ -90,6 +94,7 @@ if __name__ == "__main__":
         cleaned_data,
         k=k,
     )
+
     temporal_k_distances = calculate_temporal_k_distances(
         cleaned_data,
         k=k,
@@ -111,17 +116,22 @@ if __name__ == "__main__":
         PositionClusterSchema,
     )
 
+    # ST-DBSCAN에서 이동으로 분류된 GPS point를 선택한다.
+    moving_positions = clustered_data.filter(pl.col("cluster_id") == 0)
+
     # Map Matching을 위한 도로망을 불러오고 평면 좌표계로 변환한다.
     road_network = load_road_network(
-        cleaned_data,
+        moving_positions,
         margin=ROAD_NETWORK_VIEW_MARGIN,
     )
 
-    projected_road_network = ox.project_graph(road_network)
+    projected_road_network = ox.project_graph(
+        road_network,
+    )
 
     # GPS 좌표를 도로망과 동일한 좌표계의 x, y 좌표로 변환한다.
     projected_positions = project_positions(
-        cleaned_data,
+        moving_positions,
         projected_road_network.graph["crs"],
     )
 
@@ -129,4 +139,35 @@ if __name__ == "__main__":
         projected_positions.select(list(ProjectedPositionSchema.model_fields.keys())),
         f"{PROCESSED_DIR}/projected_positions.csv",
         ProjectedPositionSchema,
+    )
+
+    # 도로 edge를 GeoDataFrame으로 변환한다.
+    edges = ox.graph_to_gdfs(
+        projected_road_network,
+        nodes=False,
+        edges=True,
+    )
+
+    # Map Matching 후보 탐색을 위한 search radius를 추정한다.
+    road_k = 3
+
+    road_k_distances = calculate_nearest_road_distances(
+        projected_positions,
+        edges,
+        k=road_k,
+    )
+
+    search_radius = road_k_distances.quantile(0.95)
+
+    # Search radius 내의 도로에 projection하여 후보 위치를 생성한다.
+    candidate_positions = generate_candidate_positions(
+        projected_positions,
+        edges,
+        search_radius=search_radius,
+    )
+
+    save_dataframe(
+        candidate_positions.select(list(CandidatePositionSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/candidate_positions.csv",
+        CandidatePositionSchema,
     )
