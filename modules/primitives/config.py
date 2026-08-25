@@ -17,3 +17,6 @@ MAX_JUMP_POINTS = 3
 # Road network margins
 ROAD_NETWORK_CACHE_MARGIN = 5_000  # meters
 ROAD_NETWORK_VIEW_MARGIN = 1_000  # meters
+
+# Map matching
+MAX_CANDIDATES = 5

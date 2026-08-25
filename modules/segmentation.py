@@ -1,8 +1,10 @@
 import polars as pl
 
 from modules.haversine import haversine_expr
+from modules.primitives.decorators import measure_time
 
 
+@measure_time
 def segment_positions(
     df: pl.DataFrame,
     jump_thres: float,

@@ -2,7 +2,10 @@ import polars as pl
 from pyproj import Transformer
 from shapely.geometry import LineString, Point
 
+from modules.primitives.decorators import measure_time
 
+
+@measure_time
 def project_positions(
     positions: pl.DataFrame,
     target_crs,

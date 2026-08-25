@@ -7,7 +7,7 @@ import polars as pl
 
 from modules.dbscan import st_dbscan
 from modules.parameter_tuning import (
-    calculate_nearest_road_distances,
+    calculate_road_k_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
     find_knee,
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     # 각 GPS point에서 k번째로 가까운 도로까지의 거리를 계산한다.
     road_k = 3
 
-    nearest_road_distances = calculate_nearest_road_distances(
+    nearest_road_distances = calculate_road_k_distances(
         projected_positions,
         edges,
         k=road_k,

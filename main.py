@@ -7,7 +7,7 @@ import polars as pl
 from modules.dbscan import st_dbscan
 from modules.map_matching import generate_candidate_positions
 from modules.parameter_tuning import (
-    calculate_nearest_road_distances,
+    calculate_road_k_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
     estimate_jump_threshold,
@@ -15,6 +15,7 @@ from modules.parameter_tuning import (
     find_knee,
 )
 from modules.primitives.config import (
+    MAX_CANDIDATES,
     PROCESSED_DIR,
     ROAD_NETWORK_VIEW_MARGIN,
 )
@@ -151,7 +152,7 @@ if __name__ == "__main__":
     # Map Matching 후보 탐색을 위한 search radius를 추정한다.
     road_k = 3
 
-    road_k_distances = calculate_nearest_road_distances(
+    road_k_distances = calculate_road_k_distances(
         projected_positions,
         edges,
         k=road_k,
@@ -164,6 +165,7 @@ if __name__ == "__main__":
         projected_positions,
         edges,
         search_radius=search_radius,
+        max_candidates=MAX_CANDIDATES,
     )
 
     save_dataframe(

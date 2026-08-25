@@ -7,12 +7,12 @@ import polars as pl
 from modules.dbscan import st_dbscan
 from modules.map_matching import generate_candidate_positions
 from modules.parameter_tuning import (
-    calculate_nearest_road_distances,
+    calculate_road_k_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
     find_knee,
 )
-from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
+from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN, MAX_CANDIDATES
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     # 후보 도로 탐색을 위한 search radius를 추정한다.
     road_k = 3
 
-    road_k_distances = calculate_nearest_road_distances(
+    road_k_distances = calculate_road_k_distances(
         projected_positions,
         edges,
         k=road_k,
@@ -90,14 +90,14 @@ if __name__ == "__main__":
 
     search_radius = road_k_distances.quantile(0.95)
 
-    # Search radius 내의 도로에 projection하여 후보 위치를 생성한다.
     candidate_positions = generate_candidate_positions(
         projected_positions,
         edges,
         search_radius=search_radius,
+        max_candidates=MAX_CANDIDATES,
     )
 
-    print("=== Road Projection ===")
+    print("=== Candidate Projection ===")
     print(f"Moving points: {projected_positions.height}")
     print(f"Candidate positions: {candidate_positions.height}")
     print(f"Search radius: {search_radius:.2f} m")

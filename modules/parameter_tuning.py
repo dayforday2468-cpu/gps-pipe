@@ -7,6 +7,7 @@ from shapely.geometry import Point
 
 from modules.haversine import haversine_expr, haversine_distance
 from modules.primitives.config import JUMP_RATE
+from modules.primitives.decorators import measure_time
 
 DistanceExpr = Callable[[dict], pl.Expr]
 
@@ -36,6 +37,7 @@ def _calculate_k_distances(
     return pl.Series("k_distance", distances).sort(descending=True)
 
 
+@measure_time
 def calculate_spatial_k_distances(
     df: pl.DataFrame,
     k: int,
@@ -55,6 +57,7 @@ def calculate_spatial_k_distances(
     )
 
 
+@measure_time
 def calculate_temporal_k_distances(
     df: pl.DataFrame,
     k: int,
@@ -71,6 +74,7 @@ def calculate_temporal_k_distances(
     )
 
 
+@measure_time
 def find_knee(
     values: pl.Series,
     normalize: bool = True,
@@ -110,6 +114,7 @@ def find_knee(
     return knee["value"]
 
 
+@measure_time
 def estimate_jump_threshold(df: pl.DataFrame) -> float:
     distances = (
         haversine_distance(df)
@@ -121,6 +126,7 @@ def estimate_jump_threshold(df: pl.DataFrame) -> float:
     return find_knee(distances)
 
 
+@measure_time
 def estimate_same_place_threshold(
     segments: pl.DataFrame,
 ) -> float:
@@ -131,7 +137,8 @@ def estimate_same_place_threshold(
     return same_place_distances.quantile(JUMP_RATE)
 
 
-def calculate_nearest_road_distances(
+@measure_time
+def calculate_road_k_distances(
     positions: pl.DataFrame,
     edges: gpd.GeoDataFrame,
     k: int,
