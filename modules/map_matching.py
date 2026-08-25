@@ -9,9 +9,8 @@ from modules.primitives.decorators import measure_time
 from modules.primitives.schema import (
     CandidatePositionSchema,
     ProjectedPositionSchema,
-    RawPositionSchema,
+    validate_schema_columns,
 )
-from modules.haversine import haversine_expr
 from modules.projection import project_point_to_edge
 
 
@@ -20,9 +19,6 @@ def _find_candidate_positions(
     edges: gpd.GeoDataFrame,
     search_radius: float,
 ) -> list[CandidatePositionSchema]:
-    if search_radius < 0:
-        raise ValueError("search_radius must be greater than or equal to 0")
-
     point = Point(
         position.x,
         position.y,
@@ -72,6 +68,14 @@ def generate_candidate_positions(
     edges: gpd.GeoDataFrame,
     search_radius: float,
 ) -> pl.DataFrame:
+    validate_schema_columns(
+        positions,
+        ProjectedPositionSchema,
+    )
+
+    if search_radius < 0:
+        raise ValueError("search_radius must be greater than or equal to 0")
+
     candidates = []
 
     for row in positions.iter_rows(named=True):
@@ -144,23 +148,16 @@ def calculate_emission_probability(
 
 def calculate_transition_probability(
     graph: nx.MultiDiGraph,
-    raw_position_a: RawPositionSchema,
-    raw_position_b: RawPositionSchema,
     candidate_a: CandidatePositionSchema,
     candidate_b: CandidatePositionSchema,
+    observed_distance: float,
     beta: float,
 ) -> float:
+    if observed_distance < 0:
+        raise ValueError("observed_distance must be greater than or equal to 0")
+
     if beta <= 0:
         raise ValueError("beta must be greater than 0")
-
-    observed_distance = pl.select(
-        haversine_expr(
-            pl.lit(raw_position_a.latitude),
-            pl.lit(raw_position_a.longitude),
-            pl.lit(raw_position_b.latitude),
-            pl.lit(raw_position_b.longitude),
-        ).alias("distance")
-    ).item()
 
     route_distance = calculate_shortest_road_distance(
         graph,

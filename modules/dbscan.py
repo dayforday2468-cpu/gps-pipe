@@ -2,37 +2,10 @@ import polars as pl
 
 from modules.haversine import haversine_expr
 from modules.primitives.decorators import measure_time
+from modules.primitives.schema import RawPositionSchema, validate_schema_columns
 
 UNASSIGNED = -1
 NOISE = 0
-
-
-def _validate_input(
-    df: pl.DataFrame,
-    eps_space: float,
-    eps_time: float,
-    min_pts: int,
-) -> None:
-    required_columns = {"timestamp", "latitude", "longitude"}
-    missing_columns = required_columns - set(df.columns)
-
-    if missing_columns:
-        raise ValueError(f"required columns are missing: {missing_columns}")
-
-    if not df["latitude"].is_between(-90, 90).all():
-        raise ValueError("latitude must be between -90 and 90")
-
-    if not df["longitude"].is_between(-180, 180).all():
-        raise ValueError("longitude must be between -180 and 180")
-
-    if eps_space <= 0:
-        raise ValueError("eps_space must be greater than 0")
-
-    if eps_time <= 0:
-        raise ValueError("eps_time must be greater than 0")
-
-    if min_pts < 1:
-        raise ValueError("min_pts must be greater than or equal to 1")
 
 
 def _retrieve_neighbors(
@@ -111,12 +84,16 @@ def st_dbscan(
     eps_time: float,
     min_pts: int,
 ) -> pl.DataFrame:
-    _validate_input(
-        df,
-        eps_space,
-        eps_time,
-        min_pts,
-    )
+    validate_schema_columns(df, RawPositionSchema)
+
+    if eps_space <= 0:
+        raise ValueError("eps_space must be greater than 0")
+
+    if eps_time <= 0:
+        raise ValueError("eps_time must be greater than 0")
+
+    if min_pts < 1:
+        raise ValueError("min_pts must be greater than or equal to 1")
 
     labels = [UNASSIGNED] * len(df)
     cluster_id = 0

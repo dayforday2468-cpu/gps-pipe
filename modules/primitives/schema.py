@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import polars as pl
 from pydantic import BaseModel, Field
 
 
@@ -82,3 +83,14 @@ class ActivitySchema(BaseModel):
 
     probability: float = Field(ge=0, le=1)
     activity_probability: float = Field(ge=0, le=1)
+
+
+def validate_schema_columns(
+    df: pl.DataFrame,
+    schema: type[BaseModel],
+) -> None:
+    required_columns = set(schema.model_fields)
+    missing_columns = required_columns - set(df.columns)
+
+    if missing_columns:
+        raise ValueError(f"required columns are missing: {missing_columns}")

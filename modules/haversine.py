@@ -1,3 +1,4 @@
+import math
 import polars as pl
 
 from modules.primitives.config import EARTH_RADIUS
@@ -10,11 +11,32 @@ def _validate_input(df: pl.DataFrame) -> None:
     if not required_columns.issubset(df.columns):
         raise ValueError("latitude and longitude columns are required")
 
-    if not df["latitude"].is_between(-90, 90).all():
-        raise ValueError("latitude must be between -90 and 90")
 
-    if not df["longitude"].is_between(-180, 180).all():
-        raise ValueError("longitude must be between -180 and 180")
+def haversine(
+    lat1: float,
+    lon1: float,
+    lat2: float,
+    lon2: float,
+) -> float:
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
+
+    delta_lat = lat2 - lat1
+    delta_lon = lon2 - lon1
+
+    a = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    )
+
+    c = 2 * math.atan2(
+        math.sqrt(a),
+        math.sqrt(1 - a),
+    )
+
+    return EARTH_RADIUS * c
 
 
 def haversine_expr(
