@@ -12,7 +12,7 @@ from modules.parameter_tuning import (
     calculate_temporal_k_distances,
     find_knee,
 )
-from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN, MAX_CANDIDATES
+from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
@@ -94,7 +94,6 @@ if __name__ == "__main__":
         projected_positions,
         edges,
         search_radius=search_radius,
-        max_candidates=MAX_CANDIDATES,
     )
 
     print("=== Candidate Projection ===")

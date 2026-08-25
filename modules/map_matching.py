@@ -1,26 +1,32 @@
 import geopandas as gpd
+import math
+import networkx as nx
 import polars as pl
 from shapely.geometry import Point
 
+from modules.primitives.config import MAX_CANDIDATES
 from modules.primitives.decorators import measure_time
+from modules.primitives.schema import (
+    CandidatePositionSchema,
+    ProjectedPositionSchema,
+    RawPositionSchema,
+)
+from modules.haversine import haversine_expr
 from modules.projection import project_point_to_edge
 
 
 def _find_candidate_positions(
-    position_id: int,
-    x: float,
-    y: float,
+    position: ProjectedPositionSchema,
     edges: gpd.GeoDataFrame,
     search_radius: float,
-    max_candidates: int,
-) -> list[dict]:
+) -> list[CandidatePositionSchema]:
     if search_radius < 0:
         raise ValueError("search_radius must be greater than or equal to 0")
 
-    if max_candidates < 1:
-        raise ValueError("max_candidates must be greater than or equal to 1")
-
-    point = Point(x, y)
+    point = Point(
+        position.x,
+        position.y,
+    )
 
     candidate_indices = edges.sindex.query(
         point,
@@ -32,8 +38,8 @@ def _find_candidate_positions(
 
     for (u, v, key), edge in edges.iloc[candidate_indices].iterrows():
         projection = project_point_to_edge(
-            x,
-            y,
+            position.x,
+            position.y,
             edge["geometry"],
         )
 
@@ -43,21 +49,21 @@ def _find_candidate_positions(
         projected_x, projected_y, distance, distance_along_edge = projection
 
         candidates.append(
-            {
-                "position_id": position_id,
-                "edge_u": u,
-                "edge_v": v,
-                "edge_key": key,
-                "x": projected_x,
-                "y": projected_y,
-                "distance": distance,
-                "distance_along_edge": distance_along_edge,
-            }
+            CandidatePositionSchema(
+                position_id=position.position_id,
+                edge_u=u,
+                edge_v=v,
+                edge_key=key,
+                x=projected_x,
+                y=projected_y,
+                distance=distance,
+                distance_along_edge=distance_along_edge,
+            )
         )
 
-    candidates.sort(key=lambda candidate: candidate["distance"])
+    candidates.sort(key=lambda candidate: candidate.distance)
 
-    return candidates[:max_candidates]
+    return candidates[:MAX_CANDIDATES]
 
 
 @measure_time
@@ -65,20 +71,106 @@ def generate_candidate_positions(
     positions: pl.DataFrame,
     edges: gpd.GeoDataFrame,
     search_radius: float,
-    max_candidates: int,
 ) -> pl.DataFrame:
     candidates = []
 
-    for position in positions.iter_rows(named=True):
+    for row in positions.iter_rows(named=True):
+        position = ProjectedPositionSchema(**row)
+
         candidates.extend(
             _find_candidate_positions(
-                position["position_id"],
-                position["x"],
-                position["y"],
+                position,
                 edges,
                 search_radius=search_radius,
-                max_candidates=max_candidates,
             )
         )
 
-    return pl.DataFrame(candidates)
+    return pl.DataFrame([candidate.model_dump() for candidate in candidates])
+
+
+def calculate_shortest_road_distance(
+    graph: nx.MultiDiGraph,
+    candidate_a: CandidatePositionSchema,
+    candidate_b: CandidatePositionSchema,
+) -> float:
+    same_edge = (
+        candidate_a.edge_u == candidate_b.edge_u
+        and candidate_a.edge_v == candidate_b.edge_v
+        and candidate_a.edge_key == candidate_b.edge_key
+    )
+
+    # 같은 edge에서는 GPS 오차에 의한 후진을 허용한다.
+    if same_edge:
+        return abs(candidate_b.distance_along_edge - candidate_a.distance_along_edge)
+
+    edge_a = graph.edges[
+        candidate_a.edge_u,
+        candidate_a.edge_v,
+        candidate_a.edge_key,
+    ]
+
+    edge_a_length = edge_a["geometry"].length
+
+    distance_a_to_v = edge_a_length - candidate_a.distance_along_edge
+
+    distance_u_to_b = candidate_b.distance_along_edge
+
+    try:
+        network_distance = nx.shortest_path_length(
+            graph,
+            source=candidate_a.edge_v,
+            target=candidate_b.edge_u,
+            weight="length",
+        )
+    except nx.NetworkXNoPath:
+        return math.inf
+
+    return distance_a_to_v + network_distance + distance_u_to_b
+
+
+def calculate_emission_probability(
+    candidate: CandidatePositionSchema,
+    sigma_z: float,
+) -> float:
+    if sigma_z <= 0:
+        raise ValueError("sigma_z must be greater than 0")
+
+    return (
+        1
+        / (math.sqrt(2 * math.pi) * sigma_z)
+        * math.exp(-0.5 * (candidate.distance / sigma_z) ** 2)
+    )
+
+
+def calculate_transition_probability(
+    graph: nx.MultiDiGraph,
+    raw_position_a: RawPositionSchema,
+    raw_position_b: RawPositionSchema,
+    candidate_a: CandidatePositionSchema,
+    candidate_b: CandidatePositionSchema,
+    beta: float,
+) -> float:
+    if beta <= 0:
+        raise ValueError("beta must be greater than 0")
+
+    observed_distance = pl.select(
+        haversine_expr(
+            pl.lit(raw_position_a.latitude),
+            pl.lit(raw_position_a.longitude),
+            pl.lit(raw_position_b.latitude),
+            pl.lit(raw_position_b.longitude),
+        ).alias("distance")
+    ).item()
+
+    route_distance = calculate_shortest_road_distance(
+        graph,
+        candidate_a,
+        candidate_b,
+    )
+
+    if math.isinf(route_distance):
+        return 0.0
+
+    distance_difference = abs(observed_distance - route_distance)
+
+    return 1 / beta * math.exp(-distance_difference / beta)

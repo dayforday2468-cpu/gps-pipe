@@ -15,7 +15,6 @@ from modules.parameter_tuning import (
     find_knee,
 )
 from modules.primitives.config import (
-    MAX_CANDIDATES,
     PROCESSED_DIR,
     ROAD_NETWORK_VIEW_MARGIN,
 )
@@ -165,7 +164,6 @@ if __name__ == "__main__":
         projected_positions,
         edges,
         search_radius=search_radius,
-        max_candidates=MAX_CANDIDATES,
     )
 
     save_dataframe(

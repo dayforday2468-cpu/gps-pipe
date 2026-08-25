@@ -75,7 +75,7 @@ def contains_bounds(
     )
 
 
-def ensure_edge_geometries(
+def _ensure_edge_geometries(
     graph: nx.MultiDiGraph,
 ) -> None:
     for u, v, edge in graph.edges(data=True):
@@ -143,7 +143,7 @@ def load_road_network(
         network_type="drive",
     )
 
-    ensure_edge_geometries(graph)
+    _ensure_edge_geometries(graph)
 
     Path(ROAD_NETWORK_DIR).mkdir(
         parents=True,
