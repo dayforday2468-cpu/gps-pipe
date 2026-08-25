@@ -1,14 +1,17 @@
 import geopandas as gpd
+import numpy as np
 import math
 import networkx as nx
 import polars as pl
 from shapely.geometry import Point
 
+from modules.haversine import haversine
 from modules.primitives.config import MAX_CANDIDATES
 from modules.primitives.decorators import measure_time
 from modules.primitives.schema import (
     CandidatePositionSchema,
     ProjectedPositionSchema,
+    RawPositionSchema,
     validate_schema_columns,
 )
 from modules.projection import project_point_to_edge
@@ -132,7 +135,7 @@ def calculate_shortest_road_distance(
     return distance_a_to_v + network_distance + distance_u_to_b
 
 
-def calculate_emission_probability(
+def _calculate_emission_probability(
     candidate: CandidatePositionSchema,
     sigma_z: float,
 ) -> float:
@@ -146,7 +149,7 @@ def calculate_emission_probability(
     )
 
 
-def calculate_transition_probability(
+def _calculate_transition_probability(
     graph: nx.MultiDiGraph,
     candidate_a: CandidatePositionSchema,
     candidate_b: CandidatePositionSchema,
@@ -155,9 +158,6 @@ def calculate_transition_probability(
 ) -> float:
     if observed_distance < 0:
         raise ValueError("observed_distance must be greater than or equal to 0")
-
-    if beta <= 0:
-        raise ValueError("beta must be greater than 0")
 
     route_distance = calculate_shortest_road_distance(
         graph,
@@ -171,3 +171,62 @@ def calculate_transition_probability(
     distance_difference = abs(observed_distance - route_distance)
 
     return 1 / beta * math.exp(-distance_difference / beta)
+
+@measure_time
+def calculate_transition_matrix(
+    graph: nx.MultiDiGraph,
+    raw_position_a: RawPositionSchema,
+    raw_position_b: RawPositionSchema,
+    candidates_a: pl.DataFrame,
+    candidates_b: pl.DataFrame,
+    beta: float,
+) -> np.ndarray:
+    validate_schema_columns(
+        candidates_a,
+        CandidatePositionSchema,
+    )
+
+    validate_schema_columns(
+        candidates_b,
+        CandidatePositionSchema,
+    )
+
+    if beta <= 0:
+        raise ValueError("beta must be greater than 0")
+
+    observed_distance = haversine(
+        raw_position_a.latitude,
+        raw_position_a.longitude,
+        raw_position_b.latitude,
+        raw_position_b.longitude,
+    )
+
+    candidate_models_a = [
+        CandidatePositionSchema(**row)
+        for row in candidates_a.iter_rows(named=True)
+    ]
+
+    candidate_models_b = [
+        CandidatePositionSchema(**row)
+        for row in candidates_b.iter_rows(named=True)
+    ]
+
+    transition_matrix = np.empty(
+        (
+            len(candidate_models_a),
+            len(candidate_models_b),
+        ),
+        dtype=float,
+    )
+
+    for i, candidate_a in enumerate(candidate_models_a):
+        for j, candidate_b in enumerate(candidate_models_b):
+            transition_matrix[i, j] = _calculate_transition_probability(
+                graph,
+                candidate_a,
+                candidate_b,
+                observed_distance,
+                beta,
+            )
+
+    return transition_matrix
