@@ -40,7 +40,7 @@ def _find_candidate_positions(
         if projection is None:
             continue
 
-        projected_x, projected_y, distance = projection
+        projected_x, projected_y, distance, distance_along_edge = projection
 
         candidates.append(
             {
@@ -51,6 +51,7 @@ def _find_candidate_positions(
                 "x": projected_x,
                 "y": projected_y,
                 "distance": distance,
+                "distance_along_edge": distance_along_edge,
             }
         )
 

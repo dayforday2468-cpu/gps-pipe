@@ -34,7 +34,7 @@ def project_point_to_edge(
     x: float,
     y: float,
     geometry: LineString,
-) -> tuple[float, float, float] | None:
+) -> tuple[float, float, float, float] | None:
     point = Point(x, y)
 
     distance_along_edge = geometry.project(point)
@@ -48,4 +48,5 @@ def project_point_to_edge(
         projected_point.x,
         projected_point.y,
         point.distance(projected_point),
+        distance_along_edge,
     )

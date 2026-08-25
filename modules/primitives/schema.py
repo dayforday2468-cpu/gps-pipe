@@ -43,14 +43,15 @@ class ProjectedPositionSchema(BaseModel):
 class CandidatePositionSchema(BaseModel):
     position_id: int = Field(ge=0)
 
-    edge_u: int
-    edge_v: int
+    edge_u: int = Field(ge=0)
+    edge_v: int = Field(ge=0)
     edge_key: int = Field(ge=0)
 
     x: float
     y: float
 
     distance: float = Field(ge=0)
+    distance_along_edge: float = Field(ge=0)
 
 
 class MatchedPositionSchema(BaseModel):
