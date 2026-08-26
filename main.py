@@ -28,12 +28,13 @@ from modules.primitives.schema import (
     PositionSegmentSchema,
     ProjectedPositionSchema,
     RawPositionSchema,
+    PositionJumpSchema,
     SegmentSchema,
 )
 from modules.projection import project_positions
 from modules.road_network import load_road_network
 from modules.segmentation import segment_positions
-from modules.sudden_position_jump import remove_sudden_position_jumps
+from modules.sudden_position_jump import detect_sudden_position_jumps
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -74,7 +75,7 @@ if __name__ == "__main__":
     )
 
     # Sudden Position Jump를 제거하여 GPS 데이터를 정제한다.
-    cleaned_data = remove_sudden_position_jumps(
+    position_jumps = detect_sudden_position_jumps(
         raw_positions,
         position_segments,
         segments,
@@ -82,9 +83,15 @@ if __name__ == "__main__":
     )
 
     save_dataframe(
-        cleaned_data.select(list(RawPositionSchema.model_fields.keys())),
-        f"{PROCESSED_DIR}/cleaned_positions.csv",
-        RawPositionSchema,
+        position_jumps.select(list(PositionJumpSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/position_jumps.csv",
+        PositionJumpSchema,
+    )
+
+    cleaned_data = raw_positions.join(
+        position_jumps.filter(pl.col("is_jump")),
+        on="position_id",
+        how="anti",
     )
 
     # ST-DBSCAN 파라미터를 추정하고 이동 및 체류 클러스터를 생성한다.

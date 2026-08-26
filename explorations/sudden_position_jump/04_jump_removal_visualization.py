@@ -1,4 +1,5 @@
 from datetime import datetime
+import polars as pl
 
 from modules.parameter_tuning import (
     estimate_jump_threshold,
@@ -8,7 +9,7 @@ from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
 from modules.segmentation import segment_positions
-from modules.sudden_position_jump import remove_sudden_position_jumps
+from modules.sudden_position_jump import detect_sudden_position_jumps
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -39,11 +40,17 @@ if __name__ == "__main__":
     print(f"Same Place Threshold: {same_place_thres:.2f} m")
 
     # sudden position jump 제거
-    cleaned_positions = remove_sudden_position_jumps(
+    position_jumps = detect_sudden_position_jumps(
         raw_filtered,
         position_segments,
         segments,
         same_place_thres=same_place_thres,
+    )
+
+    cleaned_positions = raw_filtered.join(
+        position_jumps.filter(pl.col("is_jump")),
+        on="position_id",
+        how="anti",
     )
 
     # 제거된 point 추출

@@ -11,7 +11,7 @@ from modules.primitives.schema import (
 
 
 @measure_time
-def remove_sudden_position_jumps(
+def detect_sudden_position_jumps(
     df: pl.DataFrame,
     position_segments: pl.DataFrame,
     segments: pl.DataFrame,
@@ -22,7 +22,7 @@ def remove_sudden_position_jumps(
     validate_schema_columns(segments, SegmentSchema)
 
     if df.is_empty():
-        return df
+        return pl.DataFrame({"position_id": [], "is_jump": []})
 
     jump_segments = segments.filter(
         (pl.col("point_count") <= MAX_JUMP_POINTS)
@@ -33,12 +33,16 @@ def remove_sudden_position_jumps(
         jump_segments,
         on="segment_id",
         how="semi",
+    ).select("position_id")
+
+    position_jumps = (
+        df.select("position_id")
+        .join(
+            jump_positions.with_columns(pl.lit(True).alias("is_jump")),
+            on="position_id",
+            how="left",
+        )
+        .with_columns(pl.col("is_jump").fill_null(False))
     )
 
-    cleaned = df.join(
-        jump_positions.select("position_id"),
-        on="position_id",
-        how="anti",
-    )
-
-    return cleaned
+    return position_jumps

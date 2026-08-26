@@ -30,6 +30,11 @@ class SegmentSchema(BaseModel):
     prev_next_distance: float | None = Field(default=None, ge=0)
 
 
+class PositionJumpSchema(BaseModel):
+    position_id: int = Field(ge=0)
+    is_jump: bool
+
+
 class PositionClusterSchema(BaseModel):
     position_id: int = Field(ge=0)
     cluster_id: int = Field(ge=0)
