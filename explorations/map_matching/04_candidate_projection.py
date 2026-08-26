@@ -48,15 +48,21 @@ if __name__ == "__main__":
     eps_space = find_knee(spatial_k_distances)
     eps_time = find_knee(temporal_k_distances)
 
-    clustered_positions = st_dbscan(
+    position_clusters, movements = st_dbscan(
         raw_positions,
         eps_space=eps_space,
         eps_time=eps_time,
         min_pts=min_pts,
     )
 
-    # cluster_id == 0인 이동 point만 선택한다.
-    moving_positions = clustered_positions.filter(pl.col("cluster_id") == 0)
+    clustered_positions = raw_positions.join(
+        position_clusters,
+        on="position_id",
+        how="inner",
+    )
+
+    # 이동 point만 선택한다.
+    moving_positions = clustered_positions.filter(pl.col("movement_id").is_not_null())
 
     # 도로망과 GPS point를 동일한 평면 좌표계로 변환한다.
     road_network = load_road_network(
@@ -97,6 +103,7 @@ if __name__ == "__main__":
     )
 
     print("=== Candidate Projection ===")
+    print(f"Movements: {movements.height}")
     print(f"Moving points: {projected_positions.height}")
     print(f"Candidate positions: {candidate_positions.height}")
     print(f"Search radius: {search_radius:.2f} m")

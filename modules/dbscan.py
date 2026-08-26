@@ -77,13 +77,53 @@ def _expand_cluster(
                 labels[neighbor_idx] = cluster_id
 
 
+def _create_movements(
+    clustered: pl.DataFrame,
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    clustered = clustered.with_columns(
+        (pl.col("cluster_id") == NOISE).alias("_is_moving"),
+    ).with_columns(
+        (pl.col("_is_moving") & ~pl.col("_is_moving").shift(1).fill_null(False))
+        .cast(pl.Int64)
+        .cum_sum()
+        .sub(1)
+        .alias("_movement_id"),
+        pl.col("position_id").shift(1).alias("_prev_position_id"),
+        pl.col("position_id").shift(-1).alias("_next_position_id"),
+    )
+
+    position_clusters = clustered.select(
+        "position_id",
+        "cluster_id",
+        pl.when(pl.col("_is_moving"))
+        .then(pl.col("_movement_id"))
+        .otherwise(None)
+        .alias("movement_id"),
+    )
+
+    movements = (
+        clustered.filter(pl.col("_is_moving"))
+        .group_by("_movement_id", maintain_order=True)
+        .agg(
+            pl.col("position_id").first().alias("head_position_id"),
+            pl.col("position_id").last().alias("tail_position_id"),
+            pl.col("_prev_position_id").first().alias("prev_stay_position_id"),
+            pl.col("_next_position_id").last().alias("next_stay_position_id"),
+            pl.len().alias("point_count"),
+        )
+        .rename({"_movement_id": "movement_id"})
+    )
+
+    return position_clusters, movements
+
+
 @measure_time
 def st_dbscan(
     df: pl.DataFrame,
     eps_space: float,
     eps_time: float,
     min_pts: int,
-) -> pl.DataFrame:
+) -> tuple[pl.DataFrame, pl.DataFrame]:
     validate_schema_columns(df, RawPositionSchema)
 
     if eps_space <= 0:
@@ -125,4 +165,11 @@ def st_dbscan(
             min_pts,
         )
 
-    return df.with_columns(pl.Series("cluster_id", labels))
+    clustered = df.with_columns(
+        pl.Series(
+            "cluster_id",
+            labels,
+        )
+    )
+
+    return _create_movements(clustered)

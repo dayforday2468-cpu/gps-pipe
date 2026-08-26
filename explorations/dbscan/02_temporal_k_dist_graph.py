@@ -21,7 +21,7 @@ if __name__ == "__main__":
     )
 
     min_pts = math.ceil(math.log(len(positions)))
-    k = min_pts
+    k = min_pts - 1
 
     k_distances = calculate_temporal_k_distances(
         positions,

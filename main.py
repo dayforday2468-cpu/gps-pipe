@@ -23,6 +23,7 @@ from modules.primitives.datastore import save_dataframe
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.schema import (
     CandidatePositionSchema,
+    MovementSchema,
     PositionClusterSchema,
     PositionSegmentSchema,
     ProjectedPositionSchema,
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     eps_space = find_knee(spatial_k_distances)
     eps_time = find_knee(temporal_k_distances)
 
-    clustered_data = st_dbscan(
+    position_clusters, movements = st_dbscan(
         cleaned_data,
         eps_space=eps_space,
         eps_time=eps_time,
@@ -111,9 +112,21 @@ if __name__ == "__main__":
     )
 
     save_dataframe(
-        clustered_data.select(list(PositionClusterSchema.model_fields.keys())),
+        position_clusters.select(list(PositionClusterSchema.model_fields.keys())),
         f"{PROCESSED_DIR}/position_clusters.csv",
         PositionClusterSchema,
+    )
+
+    save_dataframe(
+        movements.select(list(MovementSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/movements.csv",
+        MovementSchema,
+    )
+
+    clustered_data = cleaned_data.join(
+        position_clusters,
+        on="position_id",
+        how="inner",
     )
 
     # ST-DBSCAN에서 이동으로 분류된 GPS point를 선택한다.

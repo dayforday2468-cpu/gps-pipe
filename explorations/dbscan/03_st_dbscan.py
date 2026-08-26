@@ -1,5 +1,6 @@
 from datetime import datetime
 import math
+import polars as pl
 
 from modules.dbscan import st_dbscan
 from modules.parameter_tuning import (
@@ -39,22 +40,29 @@ if __name__ == "__main__":
     eps_space = find_knee(spatial_k_distances)
     eps_time = find_knee(temporal_k_distances)
 
-    clustered = st_dbscan(
+    position_clusters, movements = st_dbscan(
         positions,
         eps_space=eps_space,
         eps_time=eps_time,
         min_pts=min_pts,
     )
 
+    clustered = positions.join(
+        position_clusters,
+        on="position_id",
+        how="inner",
+    )
+
     print(f"MinPts: {min_pts}")
     print(f"Spatial Eps: {eps_space:.2f} m")
     print(f"Temporal Eps: {eps_time:.2f} s")
+    print(movements)
 
     visualizer = GPSVisualizer(
         title=f"ST-DBSCAN clustering - {time_range}",
     )
 
-    noise = clustered.filter(clustered["cluster_id"] == 0)
+    noise = clustered.filter(pl.col("cluster_id") == 0)
 
     visualizer.add(
         noise,
@@ -63,14 +71,14 @@ if __name__ == "__main__":
     )
 
     cluster_ids = (
-        clustered.filter(clustered["cluster_id"] > 0)
+        clustered.filter(pl.col("cluster_id") > 0)
         .get_column("cluster_id")
         .unique()
         .sort()
     )
 
     for cluster_id in cluster_ids:
-        cluster = clustered.filter(clustered["cluster_id"] == cluster_id)
+        cluster = clustered.filter(pl.col("cluster_id") == cluster_id)
 
         visualizer.add(
             cluster,

@@ -172,6 +172,7 @@ def _calculate_transition_probability(
 
     return 1 / beta * math.exp(-distance_difference / beta)
 
+
 @measure_time
 def calculate_transition_matrix(
     graph: nx.MultiDiGraph,
@@ -202,13 +203,11 @@ def calculate_transition_matrix(
     )
 
     candidate_models_a = [
-        CandidatePositionSchema(**row)
-        for row in candidates_a.iter_rows(named=True)
+        CandidatePositionSchema(**row) for row in candidates_a.iter_rows(named=True)
     ]
 
     candidate_models_b = [
-        CandidatePositionSchema(**row)
-        for row in candidates_b.iter_rows(named=True)
+        CandidatePositionSchema(**row) for row in candidates_b.iter_rows(named=True)
     ]
 
     transition_matrix = np.empty(

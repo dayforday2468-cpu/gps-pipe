@@ -33,6 +33,19 @@ class SegmentSchema(BaseModel):
 class PositionClusterSchema(BaseModel):
     position_id: int = Field(ge=0)
     cluster_id: int = Field(ge=0)
+    movement_id: int | None = Field(default=None, ge=0)
+
+
+class MovementSchema(BaseModel):
+    movement_id: int = Field(ge=0)
+
+    head_position_id: int = Field(ge=0)
+    tail_position_id: int = Field(ge=0)
+
+    prev_stay_position_id: int | None = Field(default=None, ge=0)
+    next_stay_position_id: int | None = Field(default=None, ge=0)
+
+    point_count: int = Field(gt=0)
 
 
 class ProjectedPositionSchema(BaseModel):
