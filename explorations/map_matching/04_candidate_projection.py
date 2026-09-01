@@ -10,6 +10,8 @@ from modules.parameter_tuning import (
     calculate_road_k_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
+    estimate_jump_threshold,
+    estimate_same_place_threshold,
     find_knee,
 )
 from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
@@ -18,6 +20,8 @@ from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.visualization import GPSVisualizer
 from modules.projection import project_positions
 from modules.road_network import load_road_network
+from modules.segmentation import segment_positions
+from modules.sudden_position_jump import detect_sudden_position_jumps
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -32,16 +36,44 @@ if __name__ == "__main__":
         end,
     )
 
+    # Sudden Position Jump를 제거한다.
+    jump_thres = estimate_jump_threshold(
+        raw_positions,
+    )
+
+    position_segments, segments = segment_positions(
+        raw_positions,
+        jump_thres=jump_thres,
+    )
+
+    same_place_thres = estimate_same_place_threshold(
+        segments,
+    )
+
+    position_jumps = detect_sudden_position_jumps(
+        raw_positions,
+        position_segments,
+        segments,
+        same_place_thres=same_place_thres,
+    )
+
+    cleaned_positions = raw_positions.join(
+        position_jumps.filter(pl.col("is_jump")),
+        on="position_id",
+        how="anti",
+    )
+
     # ST-DBSCAN을 실행한다.
-    min_pts = math.ceil(math.log(len(raw_positions)))
+    min_pts = math.ceil(math.log(len(cleaned_positions)))
     k = min_pts - 1
 
     spatial_k_distances = calculate_spatial_k_distances(
-        raw_positions,
+        cleaned_positions,
         k=k,
     )
+
     temporal_k_distances = calculate_temporal_k_distances(
-        raw_positions,
+        cleaned_positions,
         k=k,
     )
 
@@ -49,20 +81,22 @@ if __name__ == "__main__":
     eps_time = find_knee(temporal_k_distances)
 
     position_clusters, movements = st_dbscan(
-        raw_positions,
+        cleaned_positions,
         eps_space=eps_space,
         eps_time=eps_time,
         min_pts=min_pts,
     )
 
-    clustered_positions = raw_positions.join(
+    clustered_positions = cleaned_positions.join(
         position_clusters,
         on="position_id",
         how="inner",
     )
 
     # 이동 point만 선택한다.
-    moving_positions = clustered_positions.filter(pl.col("movement_id").is_not_null())
+    moving_positions = clustered_positions.filter(
+        pl.col("cluster_id") == 0
+    )
 
     # 도로망과 GPS point를 동일한 평면 좌표계로 변환한다.
     road_network = load_road_network(
@@ -103,6 +137,8 @@ if __name__ == "__main__":
     )
 
     print("=== Candidate Projection ===")
+    print(f"Raw points: {raw_positions.height}")
+    print(f"Cleaned points: {cleaned_positions.height}")
     print(f"Movements: {movements.height}")
     print(f"Moving points: {projected_positions.height}")
     print(f"Candidate positions: {candidate_positions.height}")
