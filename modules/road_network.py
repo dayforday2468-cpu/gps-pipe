@@ -95,12 +95,26 @@ def _ensure_edge_geometries(
             ]
         )
 
+def _prepare_road_network(
+    graph: nx.MultiDiGraph,
+    bounds: Bounds,
+) -> nx.MultiGraph:
+    truncated_graph = ox.truncate.truncate_graph_bbox(
+        graph,
+        bounds,
+        truncate_by_edge=True,
+    )
+
+    return ox.convert.to_undirected(
+        truncated_graph,
+    )
+
 
 @measure_time
 def load_road_network(
     positions: pl.DataFrame,
     margin: float,
-) -> nx.MultiDiGraph:
+) -> nx.MultiGraph:
     if margin < 0:
         raise ValueError("margin must be greater than or equal to 0")
 
@@ -115,7 +129,9 @@ def load_road_network(
     )
 
     if GRAPH_PATH.exists() and METADATA_PATH.exists():
-        metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+        metadata = json.loads(
+            METADATA_PATH.read_text(encoding="utf-8")
+        )
 
         cached_bounds = Bounds(
             west=metadata["west"],
@@ -128,12 +144,13 @@ def load_road_network(
             cached_bounds,
             requested_bounds,
         ):
-            cached_graph = ox.load_graphml(GRAPH_PATH)
+            cached_graph = ox.load_graphml(
+                GRAPH_PATH,
+            )
 
-            return ox.truncate.truncate_graph_bbox(
+            return _prepare_road_network(
                 cached_graph,
                 requested_bounds,
-                truncate_by_edge=True,
             )
 
     cache_bounds = expand_bounds(
@@ -166,12 +183,14 @@ def load_road_network(
     }
 
     METADATA_PATH.write_text(
-        json.dumps(metadata, indent=2),
+        json.dumps(
+            metadata,
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
-    return ox.truncate.truncate_graph_bbox(
+    return _prepare_road_network(
         graph,
         requested_bounds,
-        truncate_by_edge=True,
     )

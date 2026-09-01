@@ -5,13 +5,11 @@ import networkx as nx
 import polars as pl
 from shapely.geometry import Point
 
-from modules.haversine import haversine
 from modules.primitives.config import MAX_CANDIDATES
 from modules.primitives.decorators import measure_time
 from modules.primitives.schema import (
     CandidatePositionSchema,
     ProjectedPositionSchema,
-    RawPositionSchema,
     validate_schema_columns,
 )
 from modules.projection import project_point_to_edge
@@ -95,8 +93,8 @@ def generate_candidate_positions(
     return pl.DataFrame([candidate.model_dump() for candidate in candidates])
 
 
-def calculate_shortest_road_distance(
-    graph: nx.MultiDiGraph,
+def _calculate_shortest_road_distance(
+    graph: nx.MultiGraph,
     candidate_a: CandidatePositionSchema,
     candidate_b: CandidatePositionSchema,
 ) -> float:
@@ -106,60 +104,140 @@ def calculate_shortest_road_distance(
         and candidate_a.edge_key == candidate_b.edge_key
     )
 
-    # 같은 edge에서는 GPS 오차에 의한 후진을 허용한다.
     if same_edge:
-        return abs(candidate_b.distance_along_edge - candidate_a.distance_along_edge)
+        return abs(
+            candidate_b.distance_along_edge
+            - candidate_a.distance_along_edge
+        )
 
     edge_a = graph.edges[
         candidate_a.edge_u,
         candidate_a.edge_v,
         candidate_a.edge_key,
     ]
+    edge_b = graph.edges[
+        candidate_b.edge_u,
+        candidate_b.edge_v,
+        candidate_b.edge_key,
+    ]
 
     edge_a_length = edge_a["geometry"].length
+    edge_b_length = edge_b["geometry"].length
 
-    distance_a_to_v = edge_a_length - candidate_a.distance_along_edge
+    distance_a_to_u = candidate_a.distance_along_edge
+    distance_a_to_v = (
+        edge_a_length
+        - candidate_a.distance_along_edge
+    )
 
     distance_u_to_b = candidate_b.distance_along_edge
+    distance_v_to_b = (
+        edge_b_length
+        - candidate_b.distance_along_edge
+    )
 
-    try:
-        network_distance = nx.shortest_path_length(
-            graph,
-            source=candidate_a.edge_v,
-            target=candidate_b.edge_u,
-            weight="length",
+    endpoint_pairs = [
+        (
+            candidate_a.edge_u,
+            candidate_b.edge_u,
+            distance_a_to_u,
+            distance_u_to_b,
+        ),
+        (
+            candidate_a.edge_u,
+            candidate_b.edge_v,
+            distance_a_to_u,
+            distance_v_to_b,
+        ),
+        (
+            candidate_a.edge_v,
+            candidate_b.edge_u,
+            distance_a_to_v,
+            distance_u_to_b,
+        ),
+        (
+            candidate_a.edge_v,
+            candidate_b.edge_v,
+            distance_a_to_v,
+            distance_v_to_b,
+        ),
+    ]
+
+    shortest_distance = math.inf
+
+    for source, target, source_distance, target_distance in endpoint_pairs:
+        try:
+            network_distance = nx.shortest_path_length(
+                graph,
+                source=source,
+                target=target,
+                weight="length",
+            )
+        except nx.NetworkXNoPath:
+            continue
+
+        total_distance = (
+            source_distance
+            + network_distance
+            + target_distance
         )
-    except nx.NetworkXNoPath:
-        return math.inf
 
-    return distance_a_to_v + network_distance + distance_u_to_b
+        shortest_distance = min(
+            shortest_distance,
+            total_distance,
+        )
+
+    return shortest_distance
 
 
-def _calculate_emission_probability(
-    candidate: CandidatePositionSchema,
+def calculate_emission_probabilities(
+    candidates: pl.DataFrame,
     sigma_z: float,
-) -> float:
+) -> np.ndarray:
+    validate_schema_columns(
+        candidates,
+        CandidatePositionSchema,
+    )
+
     if sigma_z <= 0:
         raise ValueError("sigma_z must be greater than 0")
 
-    return (
-        1
-        / (math.sqrt(2 * math.pi) * sigma_z)
-        * math.exp(-0.5 * (candidate.distance / sigma_z) ** 2)
+    candidate_models = [
+        CandidatePositionSchema(**row)
+        for row in candidates.iter_rows(named=True)
+    ]
+
+    emission_probabilities = np.empty(
+        len(candidate_models),
+        dtype=float,
     )
+
+    for i, candidate in enumerate(candidate_models):
+        emission_probabilities[i] = (
+            1
+            / (math.sqrt(2 * math.pi) * sigma_z)
+            * math.exp(
+                -0.5
+                * (candidate.distance / sigma_z) ** 2
+            )
+        )
+
+    return emission_probabilities
 
 
 def _calculate_transition_probability(
-    graph: nx.MultiDiGraph,
+    graph: nx.MultiGraph,
     candidate_a: CandidatePositionSchema,
     candidate_b: CandidatePositionSchema,
     observed_distance: float,
     beta: float,
 ) -> float:
     if observed_distance < 0:
-        raise ValueError("observed_distance must be greater than or equal to 0")
+        raise ValueError(
+            "observed_distance must be greater than or equal to 0"
+        )
 
-    route_distance = calculate_shortest_road_distance(
+    route_distance = _calculate_shortest_road_distance(
         graph,
         candidate_a,
         candidate_b,
@@ -168,16 +246,22 @@ def _calculate_transition_probability(
     if math.isinf(route_distance):
         return 0.0
 
-    distance_difference = abs(observed_distance - route_distance)
+    distance_difference = abs(
+        observed_distance - route_distance
+    )
 
-    return 1 / beta * math.exp(-distance_difference / beta)
+    return (
+        1
+        / beta
+        * math.exp(-distance_difference / beta)
+    )
 
 
 @measure_time
 def calculate_transition_matrix(
-    graph: nx.MultiDiGraph,
-    raw_position_a: RawPositionSchema,
-    raw_position_b: RawPositionSchema,
+    graph: nx.MultiGraph,
+    projected_position_a: ProjectedPositionSchema,
+    projected_position_b: ProjectedPositionSchema,
     candidates_a: pl.DataFrame,
     candidates_b: pl.DataFrame,
     beta: float,
@@ -195,19 +279,19 @@ def calculate_transition_matrix(
     if beta <= 0:
         raise ValueError("beta must be greater than 0")
 
-    observed_distance = haversine(
-        raw_position_a.latitude,
-        raw_position_a.longitude,
-        raw_position_b.latitude,
-        raw_position_b.longitude,
+    observed_distance = math.hypot(
+        projected_position_b.x - projected_position_a.x,
+        projected_position_b.y - projected_position_a.y,
     )
 
     candidate_models_a = [
-        CandidatePositionSchema(**row) for row in candidates_a.iter_rows(named=True)
+        CandidatePositionSchema(**row)
+        for row in candidates_a.iter_rows(named=True)
     ]
 
     candidate_models_b = [
-        CandidatePositionSchema(**row) for row in candidates_b.iter_rows(named=True)
+        CandidatePositionSchema(**row)
+        for row in candidates_b.iter_rows(named=True)
     ]
 
     transition_matrix = np.empty(
