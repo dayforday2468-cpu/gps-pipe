@@ -95,6 +95,7 @@ def _ensure_edge_geometries(
             ]
         )
 
+
 def _prepare_road_network(
     graph: nx.MultiDiGraph,
     bounds: Bounds,
@@ -129,9 +130,7 @@ def load_road_network(
     )
 
     if GRAPH_PATH.exists() and METADATA_PATH.exists():
-        metadata = json.loads(
-            METADATA_PATH.read_text(encoding="utf-8")
-        )
+        metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
 
         cached_bounds = Bounds(
             west=metadata["west"],

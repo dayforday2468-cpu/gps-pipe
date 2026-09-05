@@ -94,9 +94,7 @@ if __name__ == "__main__":
     )
 
     # 이동 point만 선택한다.
-    moving_positions = clustered_positions.filter(
-        pl.col("cluster_id") == 0
-    )
+    moving_positions = clustered_positions.filter(pl.col("cluster_id") == 0)
 
     # 도로망과 GPS point를 동일한 평면 좌표계로 변환한다.
     road_network = load_road_network(

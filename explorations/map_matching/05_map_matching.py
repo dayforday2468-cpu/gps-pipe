@@ -1,11 +1,14 @@
 from datetime import datetime
 
 import math
-import matplotlib.pyplot as plt
 import osmnx as ox
 import polars as pl
 
 from modules.dbscan import st_dbscan
+from modules.map_matching import (
+    generate_candidate_positions,
+    viterbi_map_matching,
+)
 from modules.parameter_tuning import (
     calculate_road_k_distances,
     calculate_spatial_k_distances,
@@ -17,6 +20,7 @@ from modules.parameter_tuning import (
 from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
+from modules.primitives.visualization import GPSVisualizer
 from modules.projection import project_positions
 from modules.road_network import load_road_network
 from modules.segmentation import segment_positions
@@ -35,10 +39,11 @@ if __name__ == "__main__":
         end,
     )
 
-    # Sudden Position Jump 파라미터를 추정한다.
-    jump_thres = estimate_jump_threshold(raw_positions)
+    # Sudden Position Jump를 제거한다.
+    jump_thres = estimate_jump_threshold(
+        raw_positions,
+    )
 
-    # GPS 데이터를 이동 단위의 segment로 분할한다.
     position_segments, segments = segment_positions(
         raw_positions,
         jump_thres=jump_thres,
@@ -48,7 +53,6 @@ if __name__ == "__main__":
         segments,
     )
 
-    # Sudden Position Jump를 제거하여 GPS 데이터를 정제한다.
     position_jumps = detect_sudden_position_jumps(
         raw_positions,
         position_segments,
@@ -92,7 +96,7 @@ if __name__ == "__main__":
         how="inner",
     )
 
-    # cluster_id == 0인 이동 point만 선택한다.
+    # 이동 point만 선택한다.
     moving_positions = clustered_positions.filter(pl.col("cluster_id") == 0)
 
     # 도로망과 GPS point를 동일한 평면 좌표계로 변환한다.
@@ -116,7 +120,7 @@ if __name__ == "__main__":
         edges=True,
     )
 
-    # 각 GPS point에서 k번째로 가까운 도로까지의 거리를 계산한다.
+    # 후보 도로 탐색을 위한 search radius를 추정한다.
     road_k = 3
 
     road_k_distances = calculate_road_k_distances(
@@ -125,28 +129,64 @@ if __name__ == "__main__":
         k=road_k,
     )
 
-    # 상위 95%의 GPS point가 road_k개의 후보 도로를 확보할 수 있는
-    # 거리를 search radius 후보로 사용한다.
     search_radius = road_k_distances.quantile(0.95)
 
-    print(f"=== {road_k}-Nearest Road Distance ===")
-    print(road_k_distances.describe())
-    print(f"95% quantile: {search_radius:.2f} m")
-
-    plt.hist(
-        road_k_distances,
-        bins=50,
+    candidate_positions = generate_candidate_positions(
+        projected_positions,
+        edges,
+        search_radius=search_radius,
     )
 
-    plt.axvline(
-        search_radius,
-        linestyle="--",
-        label=f"95% Quantile: {search_radius:.2f} m",
+    # Viterbi Map Matching을 수행한다.
+    sigma_z = 20.0
+    beta = 50.0
+
+    matched_candidates = viterbi_map_matching(
+        projected_road_network,
+        movements,
+        projected_positions,
+        candidate_positions,
+        sigma_z=sigma_z,
+        beta=beta,
     )
 
-    plt.xlabel(f"Distance to {road_k}-Nearest Road (m)")
-    plt.ylabel("Frequency")
-    plt.title(f"{road_k}-Nearest Road Distance Distribution - {time_range}")
-    plt.legend()
+    print("=== Viterbi Map Matching ===")
+    print(f"Raw points: {raw_positions.height}")
+    print(f"Cleaned points: {cleaned_positions.height}")
+    print(f"Movements: {movements.height}")
+    print(f"Moving points: {projected_positions.height}")
+    print(f"Candidate positions: {candidate_positions.height}")
+    print(f"Matched positions: {matched_candidates.height}")
+    print(f"Search radius: {search_radius:.2f} m")
+    print(f"sigma_z: {sigma_z}")
+    print(f"beta: {beta}")
+    print(matched_candidates.head())
 
-    plt.show()
+    visualizer = GPSVisualizer(
+        title=f"Viterbi Map Matching - {time_range}",
+        show_legend=True,
+    )
+
+    visualizer.add_road_network(
+        projected_road_network,
+    )
+
+    visualizer.add(
+        projected_positions,
+        label="GPS",
+        point_size=4,
+        point_color="red",
+        alpha=0.7,
+        show_line=True,
+    )
+
+    visualizer.add(
+        matched_candidates,
+        label="Map Matched",
+        point_size=5,
+        point_color="blue",
+        alpha=0.9,
+        show_line=True,
+    )
+
+    visualizer.animate()
