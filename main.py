@@ -5,7 +5,10 @@ import osmnx as ox
 import polars as pl
 
 from modules.dbscan import st_dbscan
-from modules.map_matching import generate_candidate_positions
+from modules.map_matching import (
+    generate_candidate_positions,
+    viterbi_map_matching
+)
 from modules.parameter_tuning import (
     calculate_road_k_distances,
     calculate_spatial_k_distances,
@@ -189,5 +192,26 @@ if __name__ == "__main__":
     save_dataframe(
         candidate_positions.select(list(CandidatePositionSchema.model_fields.keys())),
         f"{PROCESSED_DIR}/candidate_positions.csv",
+        CandidatePositionSchema,
+    )
+
+    # Viterbi 알고리즘으로 최종 Map Matching 후보를 선택한다.
+    sigma_z = 20.0
+    beta = 50.0
+
+    matched_positions = viterbi_map_matching(
+        projected_road_network,
+        movements,
+        projected_positions,
+        candidate_positions,
+        sigma_z=sigma_z,
+        beta=beta,
+    )
+
+    save_dataframe(
+        matched_positions.select(
+            list(CandidatePositionSchema.model_fields.keys())
+        ),
+        f"{PROCESSED_DIR}/matched_positions.csv",
         CandidatePositionSchema,
     )

@@ -177,7 +177,7 @@ def _calculate_shortest_road_distance(
     return shortest_distance
 
 
-def calculate_emission_probabilities(
+def _calculate_emission_probabilities(
     candidates: pl.DataFrame,
     sigma_z: float,
 ) -> np.ndarray:
@@ -185,9 +185,6 @@ def calculate_emission_probabilities(
         candidates,
         CandidatePositionSchema,
     )
-
-    if sigma_z <= 0:
-        raise ValueError("sigma_z must be greater than 0")
 
     candidate_models = [
         CandidatePositionSchema(**row) for row in candidates.iter_rows(named=True)
@@ -232,7 +229,7 @@ def _calculate_transition_probability(
     return 1 / beta * math.exp(-distance_difference / beta)
 
 
-def calculate_transition_matrix(
+def _calculate_transition_matrix(
     graph: nx.MultiGraph,
     projected_position_a: ProjectedPositionSchema,
     projected_position_b: ProjectedPositionSchema,
@@ -249,9 +246,6 @@ def calculate_transition_matrix(
         candidates_b,
         CandidatePositionSchema,
     )
-
-    if beta <= 0:
-        raise ValueError("beta must be greater than 0")
 
     observed_distance = math.hypot(
         projected_position_b.x - projected_position_a.x,
@@ -294,7 +288,7 @@ def _viterbi_forward(
     sigma_z: float,
     beta: float,
 ) -> tuple[np.ndarray, list[np.ndarray]]:
-    previous_scores = calculate_emission_probabilities(
+    previous_scores = _calculate_emission_probabilities(
         candidate_groups[0],
         sigma_z,
     )
@@ -302,7 +296,7 @@ def _viterbi_forward(
     backpointers = []
 
     for index in range(1, len(candidate_groups)):
-        transition_matrix = calculate_transition_matrix(
+        transition_matrix = _calculate_transition_matrix(
             graph,
             projected_positions[index - 1],
             projected_positions[index],
@@ -311,7 +305,7 @@ def _viterbi_forward(
             beta,
         )
 
-        emission_probabilities = calculate_emission_probabilities(
+        emission_probabilities = _calculate_emission_probabilities(
             candidate_groups[index],
             sigma_z,
         )
