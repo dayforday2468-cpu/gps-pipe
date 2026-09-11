@@ -34,7 +34,10 @@ from modules.primitives.schema import (
     PositionJumpSchema,
     SegmentSchema,
 )
-from modules.projection import project_positions
+from modules.projection import (
+    project_positions,
+    unproject_positions
+)
 from modules.road_network import load_road_network
 from modules.segmentation import segment_positions
 from modules.sudden_position_jump import detect_sudden_position_jumps
@@ -214,4 +217,24 @@ if __name__ == "__main__":
         ),
         f"{PROCESSED_DIR}/matched_positions.csv",
         CandidatePositionSchema,
+    )
+
+    # Map Matched 위치를 다시 위도, 경도 좌표로 변환한다.
+    matched_geo_positions = unproject_positions(
+        matched_positions,
+        projected_road_network.graph["crs"],
+    )
+
+    # Map Matched 좌표로 기존 GPS 좌표를 갱신한다.
+    corrected_positions = cleaned_data.update(
+        matched_geo_positions,
+        on="position_id",
+    )
+
+    save_dataframe(
+        corrected_positions.select(
+            list(RawPositionSchema.model_fields.keys())
+        ),
+        f"{PROCESSED_DIR}/corrected_positions.csv",
+        RawPositionSchema,
     )
