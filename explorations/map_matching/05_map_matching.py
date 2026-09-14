@@ -105,8 +105,10 @@ if __name__ == "__main__":
         margin=ROAD_NETWORK_VIEW_MARGIN,
     )
 
-    projected_road_network = ox.project_graph(
-        road_network,
+    projected_road_network = ox.convert.to_undirected(
+        ox.project_graph(
+            road_network,
+        )
     )
 
     projected_positions = project_positions(

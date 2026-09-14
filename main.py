@@ -5,6 +5,7 @@ import osmnx as ox
 import polars as pl
 
 from modules.dbscan import st_dbscan
+from modules.interpolation import interpolate_matched_paths
 from modules.map_matching import (
     generate_candidate_positions,
     viterbi_map_matching
@@ -26,6 +27,7 @@ from modules.primitives.datastore import save_dataframe
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.schema import (
     CandidatePositionSchema,
+    MatchedPathPointSchema,
     MovementSchema,
     PositionClusterSchema,
     PositionSegmentSchema,
@@ -151,8 +153,10 @@ if __name__ == "__main__":
         margin=ROAD_NETWORK_VIEW_MARGIN,
     )
 
-    projected_road_network = ox.project_graph(
-        road_network,
+    projected_road_network = ox.convert.to_undirected(
+        ox.project_graph(
+            road_network,
+        )
     )
 
     # GPS 좌표를 도로망과 동일한 좌표계의 x, y 좌표로 변환한다.
@@ -219,22 +223,17 @@ if __name__ == "__main__":
         CandidatePositionSchema,
     )
 
-    # Map Matched 위치를 다시 위도, 경도 좌표로 변환한다.
-    matched_geo_positions = unproject_positions(
+    # Matched position 사이의 최단 도로 경로를 보간한다.
+    matched_path_points = interpolate_matched_paths(
+        projected_road_network,
+        movements,
         matched_positions,
-        projected_road_network.graph["crs"],
-    )
-
-    # Map Matched 좌표로 기존 GPS 좌표를 갱신한다.
-    corrected_positions = cleaned_data.update(
-        matched_geo_positions,
-        on="position_id",
     )
 
     save_dataframe(
-        corrected_positions.select(
-            list(RawPositionSchema.model_fields.keys())
+        matched_path_points.select(
+            list(MatchedPathPointSchema.model_fields.keys())
         ),
-        f"{PROCESSED_DIR}/corrected_positions.csv",
-        RawPositionSchema,
+        f"{PROCESSED_DIR}/matched_path_points.csv",
+        MatchedPathPointSchema,
     )

@@ -14,6 +14,7 @@ from modules.primitives.config import (
     ROAD_NETWORK_DIR,
 )
 from modules.primitives.decorators import measure_time
+from modules.primitives.schema import CandidatePositionSchema
 
 GRAPH_PATH = Path(ROAD_NETWORK_DIR) / "road_network.graphml"
 METADATA_PATH = Path(ROAD_NETWORK_DIR) / "metadata.json"
@@ -26,7 +27,7 @@ class Bounds(NamedTuple):
     north: float
 
 
-def calculate_bounds(
+def _calculate_bounds(
     positions: pl.DataFrame,
 ) -> Bounds:
     if positions.is_empty():
@@ -46,7 +47,7 @@ def calculate_bounds(
     )
 
 
-def expand_bounds(
+def _expand_bounds(
     bounds: Bounds,
     margin: float,
 ) -> Bounds:
@@ -66,7 +67,7 @@ def expand_bounds(
     )
 
 
-def contains_bounds(
+def _contains_bounds(
     outer: Bounds,
     inner: Bounds,
 ) -> bool:
@@ -122,9 +123,9 @@ def load_road_network(
     if margin > ROAD_NETWORK_CACHE_MARGIN:
         raise ValueError("margin must not exceed ROAD_NETWORK_CACHE_MARGIN")
 
-    bounds = calculate_bounds(positions)
+    bounds = _calculate_bounds(positions)
 
-    requested_bounds = expand_bounds(
+    requested_bounds = _expand_bounds(
         bounds,
         margin=margin,
     )
@@ -139,7 +140,7 @@ def load_road_network(
             north=metadata["north"],
         )
 
-        if contains_bounds(
+        if _contains_bounds(
             cached_bounds,
             requested_bounds,
         ):
@@ -152,7 +153,7 @@ def load_road_network(
                 requested_bounds,
             )
 
-    cache_bounds = expand_bounds(
+    cache_bounds = _expand_bounds(
         bounds,
         margin=ROAD_NETWORK_CACHE_MARGIN,
     )
@@ -193,3 +194,102 @@ def load_road_network(
         graph,
         requested_bounds,
     )
+
+def find_shortest_road_path(
+    graph: nx.MultiGraph,
+    candidate_a: CandidatePositionSchema,
+    candidate_b: CandidatePositionSchema,
+) -> tuple[float, list[int]]:
+    same_edge = (
+        candidate_a.edge_u == candidate_b.edge_u
+        and candidate_a.edge_v == candidate_b.edge_v
+        and candidate_a.edge_key == candidate_b.edge_key
+    )
+
+    if same_edge:
+        return (
+            abs(
+                candidate_b.distance_along_edge
+                - candidate_a.distance_along_edge
+            ),
+            [],
+        )
+
+    edge_a = graph.edges[
+        candidate_a.edge_u,
+        candidate_a.edge_v,
+        candidate_a.edge_key,
+    ]
+    edge_b = graph.edges[
+        candidate_b.edge_u,
+        candidate_b.edge_v,
+        candidate_b.edge_key,
+    ]
+
+    edge_a_length = edge_a["geometry"].length
+    edge_b_length = edge_b["geometry"].length
+
+    distance_a_to_u = candidate_a.distance_along_edge
+    distance_a_to_v = (
+        edge_a_length
+        - candidate_a.distance_along_edge
+    )
+
+    distance_u_to_b = candidate_b.distance_along_edge
+    distance_v_to_b = (
+        edge_b_length
+        - candidate_b.distance_along_edge
+    )
+
+    endpoint_pairs = [
+        (
+            candidate_a.edge_u,
+            candidate_b.edge_u,
+            distance_a_to_u,
+            distance_u_to_b,
+        ),
+        (
+            candidate_a.edge_u,
+            candidate_b.edge_v,
+            distance_a_to_u,
+            distance_v_to_b,
+        ),
+        (
+            candidate_a.edge_v,
+            candidate_b.edge_u,
+            distance_a_to_v,
+            distance_u_to_b,
+        ),
+        (
+            candidate_a.edge_v,
+            candidate_b.edge_v,
+            distance_a_to_v,
+            distance_v_to_b,
+        ),
+    ]
+
+    shortest_distance = math.inf
+    shortest_path = []
+
+    for source, target, source_distance, target_distance in endpoint_pairs:
+        try:
+            network_distance, path = nx.single_source_dijkstra(
+                graph,
+                source=source,
+                target=target,
+                weight="length",
+            )
+        except nx.NetworkXNoPath:
+            continue
+
+        total_distance = (
+            source_distance
+            + network_distance
+            + target_distance
+        )
+
+        if total_distance < shortest_distance:
+            shortest_distance = total_distance
+            shortest_path = path
+
+    return shortest_distance, shortest_path

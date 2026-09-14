@@ -73,6 +73,16 @@ class CandidatePositionSchema(BaseModel):
     distance_along_edge: float = Field(ge=0)
 
 
+class MatchedPathPointSchema(BaseModel):
+    start_position_id: int = Field(ge=0)
+    end_position_id: int = Field(ge=0)
+
+    sequence: int = Field(ge=0)
+    
+    x: float
+    y: float
+
+
 class VisitSchema(BaseModel):
     start_time: datetime
     end_time: datetime

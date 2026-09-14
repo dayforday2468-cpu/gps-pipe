@@ -13,6 +13,7 @@ from modules.primitives.schema import (
     validate_schema_columns,
 )
 from modules.projection import project_point_to_edge
+from modules.road_network import find_shortest_road_path
 
 
 def _find_candidate_positions(
@@ -93,90 +94,6 @@ def generate_candidate_positions(
     return pl.DataFrame([candidate.model_dump() for candidate in candidates])
 
 
-def _calculate_shortest_road_distance(
-    graph: nx.MultiGraph,
-    candidate_a: CandidatePositionSchema,
-    candidate_b: CandidatePositionSchema,
-) -> float:
-    same_edge = (
-        candidate_a.edge_u == candidate_b.edge_u
-        and candidate_a.edge_v == candidate_b.edge_v
-        and candidate_a.edge_key == candidate_b.edge_key
-    )
-
-    if same_edge:
-        return abs(candidate_b.distance_along_edge - candidate_a.distance_along_edge)
-
-    edge_a = graph.edges[
-        candidate_a.edge_u,
-        candidate_a.edge_v,
-        candidate_a.edge_key,
-    ]
-    edge_b = graph.edges[
-        candidate_b.edge_u,
-        candidate_b.edge_v,
-        candidate_b.edge_key,
-    ]
-
-    edge_a_length = edge_a["geometry"].length
-    edge_b_length = edge_b["geometry"].length
-
-    distance_a_to_u = candidate_a.distance_along_edge
-    distance_a_to_v = edge_a_length - candidate_a.distance_along_edge
-
-    distance_u_to_b = candidate_b.distance_along_edge
-    distance_v_to_b = edge_b_length - candidate_b.distance_along_edge
-
-    endpoint_pairs = [
-        (
-            candidate_a.edge_u,
-            candidate_b.edge_u,
-            distance_a_to_u,
-            distance_u_to_b,
-        ),
-        (
-            candidate_a.edge_u,
-            candidate_b.edge_v,
-            distance_a_to_u,
-            distance_v_to_b,
-        ),
-        (
-            candidate_a.edge_v,
-            candidate_b.edge_u,
-            distance_a_to_v,
-            distance_u_to_b,
-        ),
-        (
-            candidate_a.edge_v,
-            candidate_b.edge_v,
-            distance_a_to_v,
-            distance_v_to_b,
-        ),
-    ]
-
-    shortest_distance = math.inf
-
-    for source, target, source_distance, target_distance in endpoint_pairs:
-        try:
-            network_distance = nx.shortest_path_length(
-                graph,
-                source=source,
-                target=target,
-                weight="length",
-            )
-        except nx.NetworkXNoPath:
-            continue
-
-        total_distance = source_distance + network_distance + target_distance
-
-        shortest_distance = min(
-            shortest_distance,
-            total_distance,
-        )
-
-    return shortest_distance
-
-
 def _calculate_emission_probabilities(
     candidates: pl.DataFrame,
     sigma_z: float,
@@ -215,7 +132,7 @@ def _calculate_transition_probability(
     if observed_distance < 0:
         raise ValueError("observed_distance must be greater than or equal to 0")
 
-    route_distance = _calculate_shortest_road_distance(
+    route_distance, _ = find_shortest_road_path(
         graph,
         candidate_a,
         candidate_b,

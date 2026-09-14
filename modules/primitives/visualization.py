@@ -75,7 +75,7 @@ class GPSVisualizer:
 
     def add_road_network(
         self,
-        graph: nx.MultiDiGraph,
+        graph: nx.MultiGraph,
     ) -> None:
         self._road_network = graph
 
