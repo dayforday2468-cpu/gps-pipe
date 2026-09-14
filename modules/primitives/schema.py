@@ -78,9 +78,11 @@ class MatchedPathPointSchema(BaseModel):
     end_position_id: int = Field(ge=0)
 
     sequence: int = Field(ge=0)
-    
+
     x: float
     y: float
+
+    path_progress: float = Field(ge=0, le=1)
 
 
 class VisitSchema(BaseModel):

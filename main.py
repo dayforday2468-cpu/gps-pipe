@@ -6,10 +6,7 @@ import polars as pl
 
 from modules.dbscan import st_dbscan
 from modules.interpolation import interpolate_matched_paths
-from modules.map_matching import (
-    generate_candidate_positions,
-    viterbi_map_matching
-)
+from modules.map_matching import generate_candidate_positions, viterbi_map_matching
 from modules.parameter_tuning import (
     calculate_road_k_distances,
     calculate_spatial_k_distances,
@@ -36,10 +33,7 @@ from modules.primitives.schema import (
     PositionJumpSchema,
     SegmentSchema,
 )
-from modules.projection import (
-    project_positions,
-    unproject_positions
-)
+from modules.projection import project_positions, unproject_positions
 from modules.road_network import load_road_network
 from modules.segmentation import segment_positions
 from modules.sudden_position_jump import detect_sudden_position_jumps
@@ -216,9 +210,7 @@ if __name__ == "__main__":
     )
 
     save_dataframe(
-        matched_positions.select(
-            list(CandidatePositionSchema.model_fields.keys())
-        ),
+        matched_positions.select(list(CandidatePositionSchema.model_fields.keys())),
         f"{PROCESSED_DIR}/matched_positions.csv",
         CandidatePositionSchema,
     )
@@ -231,9 +223,7 @@ if __name__ == "__main__":
     )
 
     save_dataframe(
-        matched_path_points.select(
-            list(MatchedPathPointSchema.model_fields.keys())
-        ),
+        matched_path_points.select(list(MatchedPathPointSchema.model_fields.keys())),
         f"{PROCESSED_DIR}/matched_path_points.csv",
         MatchedPathPointSchema,
     )

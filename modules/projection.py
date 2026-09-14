@@ -6,8 +6,9 @@ from modules.primitives.decorators import measure_time
 from modules.primitives.schema import (
     RawPositionSchema,
     ProjectedPositionSchema,
-    validate_schema_columns
+    validate_schema_columns,
 )
+
 
 @measure_time
 def project_positions(
@@ -38,6 +39,7 @@ def project_positions(
         }
     )
 
+
 @measure_time
 def unproject_positions(
     positions: pl.DataFrame,
@@ -66,6 +68,7 @@ def unproject_positions(
             "longitude": longitude,
         }
     )
+
 
 def project_point_to_edge(
     x: float,

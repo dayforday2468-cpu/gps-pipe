@@ -195,6 +195,7 @@ def load_road_network(
         requested_bounds,
     )
 
+
 def find_shortest_road_path(
     graph: nx.MultiGraph,
     candidate_a: CandidatePositionSchema,
@@ -208,10 +209,7 @@ def find_shortest_road_path(
 
     if same_edge:
         return (
-            abs(
-                candidate_b.distance_along_edge
-                - candidate_a.distance_along_edge
-            ),
+            abs(candidate_b.distance_along_edge - candidate_a.distance_along_edge),
             [],
         )
 
@@ -230,16 +228,10 @@ def find_shortest_road_path(
     edge_b_length = edge_b["geometry"].length
 
     distance_a_to_u = candidate_a.distance_along_edge
-    distance_a_to_v = (
-        edge_a_length
-        - candidate_a.distance_along_edge
-    )
+    distance_a_to_v = edge_a_length - candidate_a.distance_along_edge
 
     distance_u_to_b = candidate_b.distance_along_edge
-    distance_v_to_b = (
-        edge_b_length
-        - candidate_b.distance_along_edge
-    )
+    distance_v_to_b = edge_b_length - candidate_b.distance_along_edge
 
     endpoint_pairs = [
         (
@@ -282,11 +274,7 @@ def find_shortest_road_path(
         except nx.NetworkXNoPath:
             continue
 
-        total_distance = (
-            source_distance
-            + network_distance
-            + target_distance
-        )
+        total_distance = source_distance + network_distance + target_distance
 
         if total_distance < shortest_distance:
             shortest_distance = total_distance
