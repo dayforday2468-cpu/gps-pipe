@@ -8,8 +8,10 @@ from modules.primitives.schema import (
     CandidatePositionSchema,
     MatchedPathPointSchema,
     MovementSchema,
+    RawPositionSchema,
     validate_schema_columns,
 )
+from modules.projection import unproject_positions
 from modules.road_network import find_shortest_road_path
 
 
@@ -48,6 +50,7 @@ def interpolate_matched_paths(
     graph: nx.MultiGraph,
     movements: pl.DataFrame,
     matched_positions: pl.DataFrame,
+    cleaned_positions: pl.DataFrame,
 ) -> pl.DataFrame:
     validate_schema_columns(
         movements,
@@ -58,6 +61,19 @@ def interpolate_matched_paths(
         matched_positions,
         CandidatePositionSchema,
     )
+
+    validate_schema_columns(
+        cleaned_positions,
+        RawPositionSchema,
+    )
+
+    timestamps = {
+        row["position_id"]: row["timestamp"]
+        for row in cleaned_positions.select(
+            "position_id",
+            "timestamp",
+        ).iter_rows(named=True)
+    }
 
     matched_path_points = []
 
@@ -95,6 +111,9 @@ def interpolate_matched_paths(
             if not path:
                 continue
 
+            start_timestamp = timestamps[candidate_a.position_id]
+            end_timestamp = timestamps[candidate_b.position_id]
+
             cumulative_distance = _calculate_distance_to_node(
                 graph,
                 candidate_a,
@@ -109,6 +128,15 @@ def interpolate_matched_paths(
                 else:
                     path_progress = 0.0
 
+                path_progress = min(
+                    max(path_progress, 0.0),
+                    1.0,
+                )
+
+                timestamp = (
+                    start_timestamp + (end_timestamp - start_timestamp) * path_progress
+                )
+
                 matched_path_points.append(
                     MatchedPathPointSchema(
                         start_position_id=candidate_a.position_id,
@@ -117,6 +145,7 @@ def interpolate_matched_paths(
                         x=node["x"],
                         y=node["y"],
                         path_progress=path_progress,
+                        timestamp=timestamp,
                     )
                 )
 
@@ -128,3 +157,83 @@ def interpolate_matched_paths(
                     )
 
     return pl.DataFrame([point.model_dump() for point in matched_path_points])
+
+
+@measure_time
+def build_corrected_positions(
+    cleaned_positions: pl.DataFrame,
+    matched_positions: pl.DataFrame,
+    matched_path_points: pl.DataFrame,
+    source_crs,
+) -> pl.DataFrame:
+    validate_schema_columns(
+        cleaned_positions,
+        RawPositionSchema,
+    )
+
+    validate_schema_columns(
+        matched_positions,
+        CandidatePositionSchema,
+    )
+
+    validate_schema_columns(
+        matched_path_points,
+        MatchedPathPointSchema,
+    )
+
+    # Map Matching된 GPS point를 위경도 좌표로 복원한다.
+    matched_geographic_positions = unproject_positions(
+        matched_positions,
+        source_crs,
+    ).select(
+        "position_id",
+        "latitude",
+        "longitude",
+    )
+
+    # 원본 GPS 중 Map Matching된 point의 위치를 수정한다.
+    corrected_positions = cleaned_positions.select(
+        "position_id",
+        "latitude",
+        "longitude",
+        "timestamp",
+    ).update(
+        matched_geographic_positions,
+        on="position_id",
+    )
+
+    # 보간된 중간 경로 point를 위경도 좌표로 복원한다.
+    interpolated_positions = (
+        unproject_positions(
+            matched_path_points,
+            source_crs,
+        )
+        .select(
+            "latitude",
+            "longitude",
+            "timestamp",
+        )
+        .with_columns(
+            pl.lit(
+                None,
+                dtype=pl.Int64,
+            ).alias("position_id")
+        )
+        .select(
+            "position_id",
+            "latitude",
+            "longitude",
+            "timestamp",
+        )
+    )
+
+    # 기존 point와 보간 point를 합쳐 시간 순으로 정렬한다.
+    corrected_positions = pl.concat(
+        [
+            corrected_positions,
+            interpolated_positions,
+        ],
+        how="vertical",
+    ).sort("timestamp")
+
+    return corrected_positions

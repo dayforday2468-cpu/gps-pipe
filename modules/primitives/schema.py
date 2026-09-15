@@ -83,6 +83,24 @@ class MatchedPathPointSchema(BaseModel):
     y: float
 
     path_progress: float = Field(ge=0, le=1)
+    timestamp: datetime
+
+
+class CorrectedPositionSchema(BaseModel):
+    position_id: int | None = Field(default=None, ge=0)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    timestamp: datetime
+
+
+class GeographicPositionSchema(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class CartesianPositionSchema(BaseModel):
+    x: float
+    y: float
 
 
 class VisitSchema(BaseModel):

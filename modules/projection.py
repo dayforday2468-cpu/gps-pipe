@@ -4,8 +4,8 @@ from shapely.geometry import LineString, Point
 
 from modules.primitives.decorators import measure_time
 from modules.primitives.schema import (
-    RawPositionSchema,
-    ProjectedPositionSchema,
+    CartesianPositionSchema,
+    GeographicPositionSchema,
     validate_schema_columns,
 )
 
@@ -17,8 +17,11 @@ def project_positions(
 ) -> pl.DataFrame:
     validate_schema_columns(
         positions,
-        RawPositionSchema,
+        GeographicPositionSchema,
     )
+
+    if {"x", "y"} & set(positions.columns):
+        raise ValueError("x and y columns must not already exist")
 
     transformer = Transformer.from_crs(
         "EPSG:4326",
@@ -31,12 +34,12 @@ def project_positions(
         positions["latitude"].to_numpy(),
     )
 
-    return pl.DataFrame(
-        {
-            "position_id": positions["position_id"],
-            "x": x,
-            "y": y,
-        }
+    return positions.with_columns(
+        pl.Series("x", x),
+        pl.Series("y", y),
+    ).drop(
+        "latitude",
+        "longitude",
     )
 
 
@@ -47,8 +50,11 @@ def unproject_positions(
 ) -> pl.DataFrame:
     validate_schema_columns(
         positions,
-        ProjectedPositionSchema,
+        CartesianPositionSchema,
     )
+
+    if {"latitude", "longitude"} & set(positions.columns):
+        raise ValueError("latitude and longitude columns must not already exist")
 
     transformer = Transformer.from_crs(
         source_crs,
@@ -61,12 +67,12 @@ def unproject_positions(
         positions["y"].to_numpy(),
     )
 
-    return pl.DataFrame(
-        {
-            "position_id": positions["position_id"],
-            "latitude": latitude,
-            "longitude": longitude,
-        }
+    return positions.with_columns(
+        pl.Series("latitude", latitude),
+        pl.Series("longitude", longitude),
+    ).drop(
+        "x",
+        "y",
     )
 
 

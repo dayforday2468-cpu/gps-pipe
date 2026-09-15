@@ -5,7 +5,10 @@ import osmnx as ox
 import polars as pl
 
 from modules.dbscan import st_dbscan
-from modules.interpolation import interpolate_matched_paths
+from modules.interpolation import (
+    build_corrected_positions,
+    interpolate_matched_paths,
+)
 from modules.map_matching import generate_candidate_positions, viterbi_map_matching
 from modules.parameter_tuning import (
     calculate_road_k_distances,
@@ -24,6 +27,7 @@ from modules.primitives.datastore import save_dataframe
 from modules.primitives.pipeline import initialize_pipeline
 from modules.primitives.schema import (
     CandidatePositionSchema,
+    CorrectedPositionSchema,
     MatchedPathPointSchema,
     MovementSchema,
     PositionClusterSchema,
@@ -33,7 +37,7 @@ from modules.primitives.schema import (
     PositionJumpSchema,
     SegmentSchema,
 )
-from modules.projection import project_positions, unproject_positions
+from modules.projection import project_positions
 from modules.road_network import load_road_network
 from modules.segmentation import segment_positions
 from modules.sudden_position_jump import detect_sudden_position_jumps
@@ -220,10 +224,25 @@ if __name__ == "__main__":
         projected_road_network,
         movements,
         matched_positions,
+        cleaned_data,
     )
 
     save_dataframe(
         matched_path_points.select(list(MatchedPathPointSchema.model_fields.keys())),
         f"{PROCESSED_DIR}/matched_path_points.csv",
         MatchedPathPointSchema,
+    )
+
+    # Map Matching 및 경로 보간 결과를 최종 GPS trajectory로 조립한다.
+    corrected_data = build_corrected_positions(
+        cleaned_data,
+        matched_positions,
+        matched_path_points,
+        projected_road_network.graph["crs"],
+    )
+
+    save_dataframe(
+        corrected_data.select(list(CorrectedPositionSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/corrected_positions.csv",
+        CorrectedPositionSchema,
     )

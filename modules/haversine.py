@@ -3,40 +3,7 @@ import polars as pl
 
 from modules.primitives.config import EARTH_RADIUS
 from modules.primitives.decorators import measure_time
-
-
-def _validate_input(df: pl.DataFrame) -> None:
-    required_columns = {"latitude", "longitude"}
-
-    if not required_columns.issubset(df.columns):
-        raise ValueError("latitude and longitude columns are required")
-
-
-def haversine(
-    lat1: float,
-    lon1: float,
-    lat2: float,
-    lon2: float,
-) -> float:
-    lat1 = math.radians(lat1)
-    lon1 = math.radians(lon1)
-    lat2 = math.radians(lat2)
-    lon2 = math.radians(lon2)
-
-    delta_lat = lat2 - lat1
-    delta_lon = lon2 - lon1
-
-    a = (
-        math.sin(delta_lat / 2) ** 2
-        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
-    )
-
-    c = 2 * math.atan2(
-        math.sqrt(a),
-        math.sqrt(1 - a),
-    )
-
-    return EARTH_RADIUS * c
+from modules.primitives.schema import GeographicPositionSchema, validate_schema_columns
 
 
 def haversine_expr(
@@ -67,7 +34,7 @@ def haversine_expr(
 
 @measure_time
 def haversine_distance(df: pl.DataFrame) -> pl.DataFrame:
-    _validate_input(df)
+    validate_schema_columns(df, GeographicPositionSchema)
 
     return df.with_columns(
         haversine_expr(
