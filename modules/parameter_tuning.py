@@ -8,14 +8,13 @@ from shapely.geometry import Point
 from modules.haversine import haversine_expr, haversine_distance
 from modules.primitives.config import JUMP_RATE
 from modules.primitives.decorators import measure_time
-
-DistanceExpr = Callable[[dict], pl.Expr]
+from modules.primitives.schema import GeographicPositionSchema, validate_schema_columns
 
 
 def _calculate_k_distances(
     df: pl.DataFrame,
     k: int,
-    distance_expr: DistanceExpr,
+    distance_expr: Callable[[dict], pl.Expr],
 ) -> pl.Series:
     if k < 1:
         raise ValueError("k must be greater than or equal to 1")
@@ -42,6 +41,11 @@ def calculate_spatial_k_distances(
     df: pl.DataFrame,
     k: int,
 ) -> pl.Series:
+    validate_schema_columns(
+        df,
+        GeographicPositionSchema,
+    )
+
     def spatial_distance(point: dict) -> pl.Expr:
         return haversine_expr(
             pl.lit(point["latitude"]),
@@ -62,6 +66,9 @@ def calculate_temporal_k_distances(
     df: pl.DataFrame,
     k: int,
 ) -> pl.Series:
+    if "timestamp" not in df.columns:
+        raise ValueError("timestamp column is required")
+
     def temporal_distance(point: dict) -> pl.Expr:
         return (
             (pl.col("timestamp") - pl.lit(point["timestamp"])).abs().dt.total_seconds()

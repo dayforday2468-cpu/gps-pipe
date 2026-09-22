@@ -2,7 +2,6 @@ import math
 import polars as pl
 
 from modules.primitives.config import EARTH_RADIUS
-from modules.primitives.decorators import measure_time
 from modules.primitives.schema import GeographicPositionSchema, validate_schema_columns
 
 
@@ -32,7 +31,6 @@ def haversine_expr(
     return EARTH_RADIUS * c
 
 
-@measure_time
 def haversine_distance(df: pl.DataFrame) -> pl.DataFrame:
     validate_schema_columns(df, GeographicPositionSchema)
 

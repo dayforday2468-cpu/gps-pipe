@@ -29,20 +29,13 @@ def detect_sudden_position_jumps(
         & (pl.col("prev_next_distance") <= same_place_thres)
     ).select("segment_id")
 
-    jump_positions = position_segments.join(
-        jump_segments,
+    position_jumps = position_segments.join(
+        jump_segments.with_columns(pl.lit(True).alias("is_jump")),
         on="segment_id",
-        how="semi",
-    ).select("position_id")
-
-    position_jumps = (
-        df.select("position_id")
-        .join(
-            jump_positions.with_columns(pl.lit(True).alias("is_jump")),
-            on="position_id",
-            how="left",
-        )
-        .with_columns(pl.col("is_jump").fill_null(False))
+        how="left",
+    ).select(
+        "position_id",
+        pl.col("is_jump").fill_null(False),
     )
 
     return position_jumps
