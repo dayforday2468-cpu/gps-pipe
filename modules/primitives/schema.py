@@ -9,31 +9,7 @@ class RawPositionSchema(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     timestamp: datetime
-
-
-class PositionSegmentSchema(BaseModel):
-    position_id: int = Field(ge=0)
-    segment_id: int = Field(ge=0)
-
-
-class SegmentSchema(BaseModel):
-    segment_id: int = Field(ge=0)
-
-    mean_latitude: float = Field(ge=-90, le=90)
-    mean_longitude: float = Field(ge=-180, le=180)
-
-    head_position_id: int = Field(ge=0)
-    tail_position_id: int = Field(ge=0)
-
-    point_count: int = Field(gt=0)
-
-    prev_next_distance: float | None = Field(default=None, ge=0)
-
-
-class PositionJumpSchema(BaseModel):
-    position_id: int = Field(ge=0)
-    is_jump: bool
-
+    
 
 class PositionClusterSchema(BaseModel):
     position_id: int = Field(ge=0)

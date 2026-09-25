@@ -5,8 +5,7 @@ import polars as pl
 from shapely.geometry import Point
 
 
-from modules.haversine import haversine_expr, haversine_distance
-from modules.primitives.config import JUMP_RATE
+from modules.haversine import haversine_expr
 from modules.primitives.decorators import measure_time
 from modules.primitives.schema import GeographicPositionSchema, validate_schema_columns
 
@@ -119,30 +118,6 @@ def find_knee(
     )
 
     return knee["value"]
-
-
-@measure_time
-def estimate_jump_threshold(df: pl.DataFrame) -> float:
-    distances = (
-        haversine_distance(df)
-        .get_column("distance_to_next")
-        .drop_nulls()
-        .sort(descending=True)
-    )
-
-    return find_knee(distances)
-
-
-@measure_time
-def estimate_same_place_threshold(
-    segments: pl.DataFrame,
-) -> float:
-    same_place_distances = segments.filter(
-        pl.col("prev_next_distance").is_not_null()
-    ).get_column("prev_next_distance")
-
-    return same_place_distances.quantile(JUMP_RATE)
-
 
 @measure_time
 def calculate_road_k_distances(

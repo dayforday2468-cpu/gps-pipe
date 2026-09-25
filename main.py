@@ -14,8 +14,6 @@ from modules.parameter_tuning import (
     calculate_road_k_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
-    estimate_jump_threshold,
-    estimate_same_place_threshold,
     find_knee,
 )
 from modules.primitives.config import (
@@ -31,16 +29,11 @@ from modules.primitives.schema import (
     MatchedPathPointSchema,
     MovementSchema,
     PositionClusterSchema,
-    PositionSegmentSchema,
     ProjectedPositionSchema,
     RawPositionSchema,
-    PositionJumpSchema,
-    SegmentSchema,
 )
 from modules.projection import project_positions
 from modules.road_network import load_road_network
-from modules.segmentation import segment_positions
-from modules.sudden_position_jump import detect_sudden_position_jumps
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -61,62 +54,17 @@ if __name__ == "__main__":
         RawPositionSchema,
     )
 
-    # Sudden Position Jump 파라미터를 추정한다.
-    jump_thres = estimate_jump_threshold(raw_positions)
-
-    # GPS 데이터를 이동 단위의 segment로 분할한다.
-    position_segments, segments = segment_positions(
-        raw_positions,
-        jump_thres=jump_thres,
-    )
-
-    save_dataframe(
-        position_segments.select(list(PositionSegmentSchema.model_fields.keys())),
-        f"{PROCESSED_DIR}/position_segments.csv",
-        PositionSegmentSchema,
-    )
-
-    save_dataframe(
-        segments.select(list(SegmentSchema.model_fields.keys())),
-        f"{PROCESSED_DIR}/segments.csv",
-        SegmentSchema,
-    )
-
-    same_place_thres = estimate_same_place_threshold(
-        segments,
-    )
-
-    # Sudden Position Jump를 제거하여 GPS 데이터를 정제한다.
-    position_jumps = detect_sudden_position_jumps(
-        raw_positions,
-        position_segments,
-        segments,
-        same_place_thres=same_place_thres,
-    )
-
-    save_dataframe(
-        position_jumps.select(list(PositionJumpSchema.model_fields.keys())),
-        f"{PROCESSED_DIR}/position_jumps.csv",
-        PositionJumpSchema,
-    )
-
-    cleaned_data = raw_positions.join(
-        position_jumps.filter(pl.col("is_jump")),
-        on="position_id",
-        how="anti",
-    )
-
     # ST-DBSCAN 파라미터를 추정하고 이동 및 체류 클러스터를 생성한다.
-    min_pts = math.ceil(math.log(len(cleaned_data)))
+    min_pts = math.ceil(math.log(len(raw_positions)))
     k = min_pts - 1
 
     spatial_k_distances = calculate_spatial_k_distances(
-        cleaned_data,
+        raw_positions,
         k=k,
     )
 
     temporal_k_distances = calculate_temporal_k_distances(
-        cleaned_data,
+        raw_positions,
         k=k,
     )
 
@@ -124,7 +72,7 @@ if __name__ == "__main__":
     eps_time = find_knee(temporal_k_distances)
 
     position_clusters, movements = st_dbscan(
-        cleaned_data,
+        raw_positions,
         eps_space=eps_space,
         eps_time=eps_time,
         min_pts=min_pts,
@@ -142,11 +90,12 @@ if __name__ == "__main__":
         MovementSchema,
     )
 
-    clustered_data = cleaned_data.join(
+    clustered_data = raw_positions.join(
         position_clusters,
         on="position_id",
         how="inner",
     )
+
 
     # ST-DBSCAN에서 이동으로 분류된 GPS point를 선택한다.
     moving_positions = clustered_data.filter(pl.col("cluster_id") == 0)
@@ -230,7 +179,7 @@ if __name__ == "__main__":
         projected_road_network,
         movements,
         matched_positions,
-        cleaned_data,
+        clustered_data,
     )
 
     save_dataframe(
@@ -241,7 +190,7 @@ if __name__ == "__main__":
 
     # Map Matching 및 경로 보간 결과를 최종 GPS trajectory로 조립한다.
     corrected_data = build_corrected_positions(
-        cleaned_data,
+        clustered_data,
         matched_positions,
         matched_path_points,
         projected_road_network.graph["crs"],
