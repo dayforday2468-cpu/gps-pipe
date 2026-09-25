@@ -55,6 +55,12 @@ if __name__ == "__main__":
         end,
     )
 
+    save_dataframe(
+        raw_positions.select(list(RawPositionSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/raw_positions_filtered.csv",
+        RawPositionSchema,
+    )
+
     # Sudden Position Jump 파라미터를 추정한다.
     jump_thres = estimate_jump_threshold(raw_positions)
 
