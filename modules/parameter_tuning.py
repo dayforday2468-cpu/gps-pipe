@@ -119,6 +119,7 @@ def find_knee(
 
     return knee["value"]
 
+
 @measure_time
 def calculate_road_k_distances(
     positions: pl.DataFrame,

@@ -1,7 +1,21 @@
 from datetime import datetime
 
+from enum import StrEnum
+from typing import Literal
 import polars as pl
 from pydantic import BaseModel, Field
+
+
+class PositionSource(StrEnum):
+    OBSERVED = "observed"
+    MATCHED = "matched"
+    INTERPOLATED = "interpolated"
+
+
+class PositionState(StrEnum):
+    STAY = "stay"
+    MOVEMENT = "movement"
+    REMOVED = "removed"
 
 
 class RawPositionSchema(BaseModel):
@@ -9,12 +23,21 @@ class RawPositionSchema(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     timestamp: datetime
-    
 
-class PositionClusterSchema(BaseModel):
+
+class PositionSegmentSchema(BaseModel):
     position_id: int = Field(ge=0)
-    cluster_id: int = Field(ge=0)
-    movement_id: int | None = Field(default=None, ge=0)
+    segment_id: int = Field(ge=0)
+    state: Literal[PositionState.STAY, PositionState.MOVEMENT, PositionState.REMOVED]
+
+
+class ClusterSchema(BaseModel):
+    cluster_id: int = Field(gt=0)
+
+    head_position_id: int = Field(ge=0)
+    tail_position_id: int = Field(ge=0)
+
+    point_count: int = Field(gt=0)
 
 
 class MovementSchema(BaseModel):
@@ -22,9 +45,6 @@ class MovementSchema(BaseModel):
 
     head_position_id: int = Field(ge=0)
     tail_position_id: int = Field(ge=0)
-
-    prev_stay_position_id: int | None = Field(default=None, ge=0)
-    next_stay_position_id: int | None = Field(default=None, ge=0)
 
     point_count: int = Field(gt=0)
 

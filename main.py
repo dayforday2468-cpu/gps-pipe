@@ -27,8 +27,10 @@ from modules.primitives.schema import (
     CandidatePositionSchema,
     CorrectedPositionSchema,
     MatchedPathPointSchema,
+    ClusterSchema,
     MovementSchema,
-    PositionClusterSchema,
+    PositionSegmentSchema,
+    PositionState,
     ProjectedPositionSchema,
     RawPositionSchema,
 )
@@ -71,7 +73,7 @@ if __name__ == "__main__":
     eps_space = find_knee(spatial_k_distances)
     eps_time = find_knee(temporal_k_distances)
 
-    position_clusters, movements = st_dbscan(
+    position_segments, clusters, movements = st_dbscan(
         raw_positions,
         eps_space=eps_space,
         eps_time=eps_time,
@@ -79,9 +81,15 @@ if __name__ == "__main__":
     )
 
     save_dataframe(
-        position_clusters.select(list(PositionClusterSchema.model_fields.keys())),
-        f"{PROCESSED_DIR}/position_clusters.csv",
-        PositionClusterSchema,
+        position_segments.select(list(PositionSegmentSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/position_segments.csv",
+        PositionSegmentSchema,
+    )
+
+    save_dataframe(
+        clusters.select(list(ClusterSchema.model_fields.keys())),
+        f"{PROCESSED_DIR}/clusters.csv",
+        ClusterSchema,
     )
 
     save_dataframe(
@@ -91,14 +99,13 @@ if __name__ == "__main__":
     )
 
     clustered_data = raw_positions.join(
-        position_clusters,
+        position_segments,
         on="position_id",
         how="inner",
     )
 
-
     # ST-DBSCAN에서 이동으로 분류된 GPS point를 선택한다.
-    moving_positions = clustered_data.filter(pl.col("cluster_id") == 0)
+    moving_positions = clustered_data.filter(pl.col("state") == PositionState.MOVEMENT)
 
     # Map Matching을 위한 도로망을 불러오고 평면 좌표계로 변환한다.
     road_network = load_road_network(

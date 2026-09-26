@@ -18,9 +18,11 @@ from modules.parameter_tuning import (
 from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
+from modules.primitives.schema import PositionState
 from modules.primitives.visualization import GPSVisualizer
 from modules.projection import project_positions
 from modules.road_network import load_road_network
+
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -52,21 +54,23 @@ if __name__ == "__main__":
     eps_space = find_knee(spatial_k_distances)
     eps_time = find_knee(temporal_k_distances)
 
-    position_clusters, movements = st_dbscan(
+    position_segments, clusters, movements = st_dbscan(
         raw_positions,
         eps_space=eps_space,
         eps_time=eps_time,
         min_pts=min_pts,
     )
 
-    clustered_positions = raw_positions.join(
-        position_clusters,
+    segmented_positions = raw_positions.join(
+        position_segments,
         on="position_id",
         how="inner",
     )
 
-    # 이동 point만 선택한다.
-    moving_positions = clustered_positions.filter(pl.col("cluster_id") == 0)
+    # 후처리 결과에서 이동 point만 선택한다.
+    moving_positions = segmented_positions.filter(
+        pl.col("state") == PositionState.MOVEMENT.value
+    )
 
     # 도로망과 GPS point를 동일한 평면 좌표계로 변환한다.
     road_network = load_road_network(
@@ -123,6 +127,7 @@ if __name__ == "__main__":
 
     print("=== Viterbi Map Matching ===")
     print(f"Raw points: {raw_positions.height}")
+    print(f"Clusters: {clusters.height}")
     print(f"Movements: {movements.height}")
     print(f"Moving points: {projected_positions.height}")
     print(f"Candidate positions: {candidate_positions.height}")
