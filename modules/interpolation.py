@@ -8,6 +8,7 @@ from modules.primitives.schema import (
     CandidatePositionSchema,
     MatchedPathPointSchema,
     MovementSchema,
+    PositionSource,
     RawPositionSchema,
     validate_schema_columns,
 )
@@ -191,18 +192,26 @@ def build_corrected_positions(
         "longitude",
     )
 
-    # 원본 GPS 중 Map Matching된 point의 위치를 수정한다.
-    corrected_positions = cleaned_positions.select(
-        "position_id",
-        "latitude",
-        "longitude",
-        "timestamp",
-    ).update(
-        matched_geographic_positions,
-        on="position_id",
+    # 원본 좌표를 유지한 point는 OBSERVED, 매칭된 point는 MATCHED로 구분한다.
+    corrected_positions = (
+        cleaned_positions.select(
+            "position_id",
+            "latitude",
+            "longitude",
+            "timestamp",
+        )
+        .with_columns(
+            pl.lit(PositionSource.OBSERVED.value).alias("source")
+        )
+        .update(
+            matched_geographic_positions.with_columns(
+                pl.lit(PositionSource.MATCHED.value).alias("source")
+            ),
+            on="position_id",
+        )
     )
 
-    # 보간된 중간 경로 point를 위경도 좌표로 복원한다.
+    # 경로 보간으로 생성한 point는 INTERPOLATED로 표시한다.
     interpolated_positions = (
         unproject_positions(
             matched_path_points,
@@ -214,25 +223,20 @@ def build_corrected_positions(
             "timestamp",
         )
         .with_columns(
-            pl.lit(
-                None,
-                dtype=pl.Int64,
-            ).alias("position_id")
+            pl.lit(None, dtype=pl.Int64).alias("position_id"),
+            pl.lit(PositionSource.INTERPOLATED.value).alias("source"),
         )
         .select(
             "position_id",
             "latitude",
             "longitude",
             "timestamp",
+            "source",
         )
     )
 
-    # 기존 point와 보간 point를 합쳐 시간 순으로 정렬한다.
     corrected_positions = pl.concat(
-        [
-            corrected_positions,
-            interpolated_positions,
-        ],
+        [corrected_positions, interpolated_positions],
         how="vertical",
     ).sort("timestamp")
 

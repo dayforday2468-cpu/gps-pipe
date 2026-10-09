@@ -17,18 +17,16 @@ from modules.parameter_tuning import (
     calculate_road_k_distances,
     calculate_spatial_k_distances,
     calculate_temporal_k_distances,
-    estimate_jump_threshold,
-    estimate_same_place_threshold,
     find_knee,
 )
 from modules.primitives.config import ROAD_NETWORK_VIEW_MARGIN
 from modules.primitives.datafilter import filter_points
 from modules.primitives.pipeline import initialize_pipeline
+from modules.primitives.schema import PositionState
 from modules.primitives.visualization import GPSVisualizer
 from modules.projection import project_positions
 from modules.road_network import load_road_network
-from modules.segmentation import segment_positions
-from modules.sudden_position_jump import detect_sudden_position_jumps
+
 
 if __name__ == "__main__":
     batches = initialize_pipeline()
@@ -43,44 +41,17 @@ if __name__ == "__main__":
         end,
     )
 
-    # Sudden Position Jump 제거
-    jump_thres = estimate_jump_threshold(
-        raw_positions,
-    )
-
-    position_segments, segments = segment_positions(
-        raw_positions,
-        jump_thres=jump_thres,
-    )
-
-    same_place_thres = estimate_same_place_threshold(
-        segments,
-    )
-
-    position_jumps = detect_sudden_position_jumps(
-        raw_positions,
-        position_segments,
-        segments,
-        same_place_thres=same_place_thres,
-    )
-
-    cleaned_positions = raw_positions.join(
-        position_jumps.filter(pl.col("is_jump")),
-        on="position_id",
-        how="anti",
-    )
-
     # ST-DBSCAN
-    min_pts = math.ceil(math.log(len(cleaned_positions)))
+    min_pts = math.ceil(math.log(len(raw_positions)))
     k = min_pts - 1
 
     spatial_k_distances = calculate_spatial_k_distances(
-        cleaned_positions,
+        raw_positions,
         k=k,
     )
 
     temporal_k_distances = calculate_temporal_k_distances(
-        cleaned_positions,
+        raw_positions,
         k=k,
     )
 
@@ -92,8 +63,8 @@ if __name__ == "__main__":
         temporal_k_distances,
     )
 
-    position_clusters, movements = st_dbscan(
-        cleaned_positions,
+    position_segments, clusters, movements = st_dbscan(
+        raw_positions,
         eps_space=eps_space,
         eps_time=eps_time,
         min_pts=min_pts,
@@ -101,7 +72,7 @@ if __name__ == "__main__":
 
     # 도로망 로드
     road_network = load_road_network(
-        cleaned_positions,
+        raw_positions,
         margin=ROAD_NETWORK_VIEW_MARGIN,
     )
 
@@ -112,19 +83,23 @@ if __name__ == "__main__":
         )
     )
 
-    # 전체 cleaned position을 projection한 뒤 cluster 정보를 결합한다.
-    projected_all_positions = project_positions(
-        cleaned_positions,
-        projected_road_network.graph["crs"],
-    ).join(
-        position_clusters,
-        on="position_id",
-        how="left",
+    # 전체 position을 projection한 뒤 segment 정보를 결합한다.
+    projected_all_positions = (
+        project_positions(
+            raw_positions,
+            projected_road_network.graph["crs"],
+        )
+        .join(
+            position_segments,
+            on="position_id",
+            how="left",
+        )
     )
 
     # movement point만 Map Matching에 사용한다.
     projected_moving_positions = (
-        projected_all_positions.filter(pl.col("cluster_id") == 0)
+        projected_all_positions
+        .filter(pl.col("state") == PositionState.MOVEMENT.value)
         .select(
             "position_id",
             "x",
@@ -155,33 +130,36 @@ if __name__ == "__main__":
     )
 
     # Viterbi Map Matching
-    matched_positions = viterbi_map_matching(
-        projected_road_network,
-        movements,
-        projected_moving_positions,
-        candidate_positions,
-        sigma_z=20.0,
-        beta=50.0,
-    ).sort("position_id")
+    matched_positions = (
+        viterbi_map_matching(
+            projected_road_network,
+            movements,
+            projected_moving_positions,
+            candidate_positions,
+            sigma_z=20.0,
+            beta=50.0,
+        )
+        .sort("position_id")
+    )
 
     # Matched position 사이의 공간 및 시간 경로를 보간한다.
     matched_path_points = interpolate_matched_paths(
         projected_road_network,
         movements,
         matched_positions,
-        cleaned_positions,
+        raw_positions,
     )
 
     # Map Matching 및 경로 보간 결과를 최종 trajectory로 조립한다.
     corrected_positions = build_corrected_positions(
-        cleaned_positions,
+        raw_positions,
         matched_positions,
         matched_path_points,
         projected_road_network.graph["crs"],
     )
 
     print("=== Corrected Trajectory ===")
-    print(f"Cleaned positions: {cleaned_positions.height}")
+    print(f"Clusters: {clusters.height}")
     print(f"Movements: {movements.height}")
     print(f"Matched positions: {matched_positions.height}")
     print(f"Matched path points: {matched_path_points.height}")
